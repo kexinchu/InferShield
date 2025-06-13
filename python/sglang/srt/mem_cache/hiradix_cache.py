@@ -16,6 +16,7 @@ from sglang.srt.mem_cache.memory_pool import (
     TokenToKVPoolAllocator,
 )
 from sglang.srt.mem_cache.radix_cache import RadixCache, TreeNode
+from sglang import get_epoch
 
 logger = logging.getLogger(__name__)
 
@@ -307,7 +308,7 @@ class HiRadixCache(RadixCache):
     def ready_to_load_cache(self):
         self.load_cache_event.set()
 
-    def match_prefix(self, key: List[int], include_evicted=False, **kwargs):
+    def match_prefix(self, key: List[int], include_evicted=False, user_id: Optional[int] = None, **kwargs):
         empty_value = torch.empty((0,), dtype=torch.int64, device=self.device)
         if self.disable or len(key) == 0:
             if include_evicted:
@@ -319,7 +320,7 @@ class HiRadixCache(RadixCache):
             page_aligned_len = len(key) // self.page_size * self.page_size
             key = key[:page_aligned_len]
 
-        value, last_node = self._match_prefix_helper(self.root_node, key)
+        value, last_node = self._match_prefix_helper(self.root_node, key, user_id)
         if value:
             value = torch.cat(value)
         else:
@@ -334,13 +335,28 @@ class HiRadixCache(RadixCache):
         else:
             return value, last_node
 
-    def _match_prefix_helper(self, node: TreeNode, key: List):
+    def _match_prefix_helper(self, node: TreeNode, key: List, user_id: Optional[int] = None):
         node.last_access_time = time.monotonic()
+        node.epoch = get_epoch() # add by kexinchu
         child_key = self.get_child_key_fn(key)
         value = []
 
         while len(key) > 0 and child_key in node.children.keys():
             child = node.children[child_key]
+            # add by kexinchu --- start
+            if user_id is not None and child.private: # private node, check owner_id
+                if child.owner_id != user_id:
+                    break
+            if child.epoch < get_epoch(): # next time windows;
+                child.u_cnt_pre = len(child.u_cnt_l)
+                child.u_cnt_l = set([user_id])
+                child.hit_pre = child.hit_count
+                child.hit_count = 0
+            else:
+                child.u_cnt_l.add(user_id)
+                child.hit_count += 1
+            child.epoch = get_epoch()
+            # add by kexinchu --- end
             child.last_access_time = time.monotonic()
             prefix_len = self.key_match_fn(child.key, key)
             if prefix_len < len(child.key):
@@ -370,6 +386,14 @@ class HiRadixCache(RadixCache):
         new_node.lock_ref = child.lock_ref
         new_node.key = child.key[:split_len]
         new_node.loading = child.loading
+        # add by kexinchu --- start
+        new_node.owner_id = child.owner_id 
+        new_node.private = child.private
+        new_node.u_cnt_l = child.u_cnt_l
+        new_node.hit_pre = child.hit_pre
+        new_node.u_cnt_pre = child.u_cnt_pre
+        new_node.hit_count = child.hit_count
+        # add by kexinchu --- end
 
         # split value and host value if exists
         if child.evicted:
@@ -385,8 +409,9 @@ class HiRadixCache(RadixCache):
         new_node.parent.children[self.get_child_key_fn(key)] = new_node
         return new_node
 
-    def _insert_helper(self, node: TreeNode, key: List, value):
+    def _insert_helper(self, node: TreeNode, key: List, value, user_id: Optional[int] = None):
         node.last_access_time = time.monotonic()
+        node.epoch = get_epoch() # add by kexinchu
         if len(key) == 0:
             return 0
 
@@ -396,6 +421,7 @@ class HiRadixCache(RadixCache):
         while len(key) > 0 and child_key in node.children.keys():
             node = node.children[child_key]
             node.last_access_time = time.monotonic()
+            node.epoch = get_epoch() # add by kexinchu
             prefix_len = self.key_match_fn(node.key, key)
 
             if prefix_len == len(node.key):

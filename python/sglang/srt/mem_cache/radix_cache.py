@@ -65,9 +65,9 @@ class TreeNode:
         TreeNode.counter += 1
 
         # add by kexinchu --- start
-        self.private = False
+        self.private = True  # default is private node
         self.owner_id = None
-        self.u_cnt_l = [] # the hit user_id list
+        self.u_cnt_l = set() # the hit user_id list
         self.hit_pre = 0
         self.u_cnt_pre = 0 # 上一个time_window的hit_user_count
         self.epoch = get_epoch()
@@ -171,20 +171,20 @@ class RadixCache(BasePrefixCache):
             page_aligned_len = len(key) // self.page_size * self.page_size
             key = key[:page_aligned_len]
 
-        value, last_node = self._match_prefix_helper(self.root_node, key)
+        value, last_node = self._match_prefix_helper(self.root_node, key, user_id)
         if value:
             value = torch.cat(value)
         else:
             value = torch.empty((0,), dtype=torch.int64, device=self.device)
         return value, last_node
 
-    def insert(self, key: List, value=None):
+    def insert(self, key: List, value=None, user_id: Optional[int] = None):
         if self.disable:
             return 0
 
         if value is None:
             value = [x for x in key]
-        return self._insert_helper(self.root_node, key, value)
+        return self._insert_helper(self.root_node, key, value, user_id = user_id)
 
     def cache_finished_req(self, req: Req):
         """Cache request when it finishes."""
@@ -211,7 +211,7 @@ class RadixCache(BasePrefixCache):
 
         # Radix Cache takes one ref in memory pool
         new_prefix_len = self.insert(
-            token_ids[:page_aligned_len], page_aligned_kv_indices
+            token_ids[:page_aligned_len], page_aligned_kv_indices, user_id=req.user_id
         )
         self.token_to_kv_pool_allocator.free(
             kv_indices[len(req.prefix_indices) : new_prefix_len]
@@ -240,7 +240,7 @@ class RadixCache(BasePrefixCache):
         page_aligned_token_ids = token_ids[:page_aligned_len]
 
         # Radix Cache takes one ref in memory pool
-        new_prefix_len = self.insert(page_aligned_token_ids, page_aligned_kv_indices)
+        new_prefix_len = self.insert(page_aligned_token_ids, page_aligned_kv_indices, user_id=req.user_id)
         self.token_to_kv_pool_allocator.free(
             kv_indices[len(req.prefix_indices) : new_prefix_len]
         )
@@ -344,14 +344,28 @@ class RadixCache(BasePrefixCache):
 
     ##### Internal Helper Functions #####
 
-    def _match_prefix_helper(self, node: TreeNode, key: List):
+    def _match_prefix_helper(self, node: TreeNode, key: List, user_id: Optional[int] = None):
         node.last_access_time = time.monotonic()
-
+        node.epoch = get_epoch() # add by kexinchu
         child_key = self.get_child_key_fn(key)
 
         value = []
         while len(key) > 0 and child_key in node.children.keys():
             child = node.children[child_key]
+            # add by kexinchu --- start
+            if user_id is not None and child.private: # private node, check owner_id
+                if child.owner_id != user_id:
+                    break
+            if child.epoch < get_epoch(): # next time windows;
+                child.u_cnt_pre = len(child.u_cnt_l)
+                child.u_cnt_l = set([user_id])
+                child.hit_pre = child.hit_count
+                child.hit_count = 0
+            else:
+                child.u_cnt_l.add(user_id)
+                child.hit_count += 1
+            child.epoch = get_epoch()
+            # add by kexinchu --- end
             child.last_access_time = time.monotonic()
             prefix_len = self.key_match_fn(child.key, key)
             if prefix_len < len(child.key):
@@ -378,6 +392,14 @@ class RadixCache(BasePrefixCache):
         new_node.lock_ref = child.lock_ref
         new_node.key = child.key[:split_len]
         new_node.value = child.value[:split_len]
+        # add by kexinchu --- start
+        new_node.owner_id = child.owner_id 
+        new_node.private = child.private
+        new_node.u_cnt_l = child.u_cnt_l
+        new_node.hit_pre = child.hit_pre
+        new_node.u_cnt_pre = child.u_cnt_pre
+        new_node.hit_count = child.hit_count
+        # add by kexinchu --- end
         child.parent = new_node
         child.key = child.key[split_len:]
         child.value = child.value[split_len:]
@@ -388,8 +410,9 @@ class RadixCache(BasePrefixCache):
 
         return new_node
 
-    def _insert_helper(self, node: TreeNode, key: List, value):
+    def _insert_helper(self, node: TreeNode, key: List, value, user_id: Optional[int] = None):
         node.last_access_time = time.monotonic()
+        node.epoch = get_epoch() # add by kexinchu
         if len(key) == 0:
             return 0
 
@@ -399,6 +422,7 @@ class RadixCache(BasePrefixCache):
         while len(key) > 0 and child_key in node.children.keys():
             node = node.children[child_key]
             node.last_access_time = time.monotonic()
+            node.epoch = get_epoch() # add by kexinchu
             prefix_len = self.key_match_fn(node.key, key)
             total_prefix_length += prefix_len
             key = key[prefix_len:]
@@ -416,6 +440,7 @@ class RadixCache(BasePrefixCache):
             new_node.parent = node
             new_node.key = key
             new_node.value = value
+            new_node.owner_id = user_id # add by kexinchu
             node.children[child_key] = new_node
             self.evictable_size_ += len(value)
             self._record_store_event(new_node)
