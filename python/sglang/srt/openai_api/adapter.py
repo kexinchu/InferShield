@@ -1146,6 +1146,7 @@ def v1_chat_generate_request(
             "no_stop_trim": request.no_stop_trim,
             "ignore_eos": request.ignore_eos,
             "skip_special_tokens": request.skip_special_tokens,
+            "user_id": request.user_id, ## add by kexinchu 
         }
 
         if request.response_format and request.response_format.type == "json_schema":
@@ -1442,6 +1443,7 @@ async def v1_chat_completions(
         all_requests, tokenizer_manager, request_ids=[all_requests[0].rid]
     )
 
+    # if stream is True, then we need to stream the response
     if adapted_request.stream:
         parser_dict = {}
         reasoning_parser_dict = {}

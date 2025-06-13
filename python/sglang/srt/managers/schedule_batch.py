@@ -441,6 +441,7 @@ class Req:
         bootstrap_host: Optional[str] = None,
         bootstrap_port: Optional[int] = None,
         bootstrap_room: Optional[int] = None,
+        user_id: Optional[int] = None, # add by kexinchu
     ):
         # Input and output info
         self.rid = rid
@@ -607,6 +608,7 @@ class Req:
         # We use `tmp_end_idx` to store the end index of the kv cache to send.
         self.tmp_end_idx: int = -1
         self.metadata_buffer_index: int = -1
+        self.user_id: int = user_id # add by kexinchu
 
     @property
     def seqlen(self):
@@ -633,12 +635,12 @@ class Req:
             if enable_hierarchical_cache:
                 self.prefix_indices, self.last_node, self.last_node_global = (
                     tree_cache.match_prefix(
-                        key=self.adjust_max_prefix_ids(), include_evicted=True
+                        key=self.adjust_max_prefix_ids(), user_id=self.user_id, include_evicted=True
                     )
                 )
             else:
                 self.prefix_indices, self.last_node = tree_cache.match_prefix(
-                    rid=self.rid, key=self.adjust_max_prefix_ids()
+                    rid=self.rid, user_id=self.user_id, key=self.adjust_max_prefix_ids()
                 )
         elif enable_hierarchical_cache:
             # in case last_node is evicted during scheduling, we need to update the prefix_indices

@@ -365,6 +365,7 @@ class ChatCompletionRequest(BaseModel):
     temperature: float = 0.7
     top_p: float = 1.0
     user: Optional[str] = None
+    user_id: Optional[int] = None  # add by kexinchu
     tools: Optional[List[Tool]] = Field(default=None, examples=[None])
     tool_choice: Union[ToolChoice, Literal["auto", "required", "none"]] = Field(
         default="auto", examples=["none"]

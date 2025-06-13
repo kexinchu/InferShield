@@ -36,6 +36,7 @@ from torch.distributed import barrier
 from sglang.global_config import global_config
 from sglang.srt.configs.model_config import ModelConfig
 from sglang.srt.constrained.base_grammar_backend import create_grammar_backend
+# PD分离
 from sglang.srt.disaggregation.decode import (
     DecodePreallocQueue,
     DecodeTransferQueue,
@@ -123,8 +124,8 @@ from sglang.srt.managers.tp_worker import TpModelWorker
 from sglang.srt.managers.tp_worker_overlap_thread import TpModelWorkerClient
 from sglang.srt.managers.utils import validate_input_length
 from sglang.srt.mem_cache.chunk_cache import ChunkCache
-from sglang.srt.mem_cache.hiradix_cache import HiRadixCache
-from sglang.srt.mem_cache.radix_cache import RadixCache
+from sglang.srt.mem_cache.hiradix_cache import HiRadixCache  # hierarchical radixcache
+from sglang.srt.mem_cache.radix_cache import RadixCache      # radixcache
 from sglang.srt.metrics.collector import SchedulerMetricsCollector, SchedulerStats
 from sglang.srt.model_executor.forward_batch_info import ForwardMode, PPProxyTensors
 from sglang.srt.reasoning_parser import ReasoningParser
@@ -518,6 +519,7 @@ class Scheduler(
             )
         else:
             if self.enable_hierarchical_cache:
+                # self.tree_cache 就是管理 radixcache 的实例
                 self.tree_cache = HiRadixCache(
                     req_to_token_pool=self.req_to_token_pool,
                     token_to_kv_pool_allocator=self.token_to_kv_pool_allocator,
@@ -648,7 +650,7 @@ class Scheduler(
     def event_loop_normal(self):
         """A normal scheduler loop."""
         while True:
-            recv_reqs = self.recv_requests()
+            recv_reqs = self.recv_requests()  # 从ZMQ接收请求
             self.process_input_requests(recv_reqs)
 
             batch = self.get_next_batch_to_run()
@@ -943,6 +945,7 @@ class Scheduler(
                 bootstrap_host=recv_req.bootstrap_host,
                 bootstrap_port=recv_req.bootstrap_port,
                 bootstrap_room=recv_req.bootstrap_room,
+                user_id = recv_req.sampling_params.user_id, # add by kexinchu
             )
             req.tokenizer = self.tokenizer
 
@@ -968,7 +971,7 @@ class Scheduler(
                 self._add_request_to_queue(req)
                 return
         else:
-            # Create a new request from a previous session
+            # Create a new request from a previous session - 多个session的，支持在之前的session下继续对话
             session = self.sessions[recv_req.session_params.id]
             req = session.create_req(recv_req, self.tokenizer)
             if isinstance(req.finished_reason, FINISH_ABORT):
@@ -1305,7 +1308,7 @@ class Scheduler(
             # Move the chunked request out of the batch so that we can merge
             # only finished requests to running_batch.
             chunked_req_to_exclude.add(self.chunked_req)
-            self.tree_cache.cache_unfinished_req(self.chunked_req)
+            self.tree_cache.cache_unfinished_req(self.chunked_req)   # 创建radixcache节点(KV-Cache)
             # chunked request keeps its rid but will get a new req_pool_idx
             self.req_to_token_pool.free(self.chunked_req.req_pool_idx)
         if self.last_batch and self.last_batch.forward_mode.is_extend():

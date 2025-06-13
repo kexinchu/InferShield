@@ -40,6 +40,8 @@ from sglang.srt.mem_cache.memory_pool import ReqToTokenPool, TokenToKVPoolAlloca
 if TYPE_CHECKING:
     from sglang.srt.managers.schedule_batch import Req
 
+# add by kexinchu
+from sglang import get_epoch
 
 class TreeNode:
 
@@ -53,7 +55,7 @@ class TreeNode:
         self.lock_ref = 0
         self.last_access_time = time.monotonic()
 
-        self.hit_count = 0
+        self.hit_count = 0 # already have hit_count
         # indicating the node is loading KV cache from host
         self.loading = False
         # store the host indices of KV cache
@@ -61,6 +63,15 @@ class TreeNode:
 
         self.id = TreeNode.counter if id is None else id
         TreeNode.counter += 1
+
+        # add by kexinchu --- start
+        self.private = False
+        self.owner_id = None
+        self.u_cnt_l = [] # the hit user_id list
+        self.hit_pre = 0
+        self.u_cnt_pre = 0 # 上一个time_window的hit_user_count
+        self.epoch = get_epoch()
+        # add by kexinchu --- end
 
     @property
     def evicted(self):
@@ -135,7 +146,7 @@ class RadixCache(BasePrefixCache):
         self.protected_size_ = 0
         self._record_all_cleared_event()
 
-    def match_prefix(self, key: List[int], **kwargs) -> Tuple[torch.Tensor, int]:
+    def match_prefix(self, key: List[int], user_id: Optional[int] = None, **kwargs) -> Tuple[torch.Tensor, int]:
         """Find the matching prefix from the radix tree.
         Args:
             key: A list of token IDs to find a matching prefix.
@@ -488,6 +499,7 @@ class RadixCache(BasePrefixCache):
 
         Returns:
             A list of KV cache events.
+            用于管理异步/延迟执行的events, KV-cache分配/释放/共享
         """
         if not self.enable_kv_cache_events:
             return []
