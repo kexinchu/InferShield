@@ -83,15 +83,15 @@
 
 ## 修改建议 20250610
 - threat model 最后两段不要写，只写攻击者怎么攻击 + 攻击者是什么？
-        - 对手的cpacity
-        - 对手的目的
-        - 对手可能的攻击行为
-    - related work + motivation 放在一起
-        - 两段放在motivation
-        - 有一些攻击的工作，已经在攻击了
-        - 分析一下现有的防守方式；
-    - challenges 放到design的第一部分
-    - design 后面的部分和challenge一一对应
-    - 可以将challenge 中security部分放到一起，再去讲性能
-    - NDSS -> 主要强调security
-    - attack -> access rate
+    - 对手的cpacity
+    - 对手的目的
+    - 对手可能的攻击行为
+- related work + motivation 放在一起
+    - 两段放在motivation
+    - 有一些攻击的工作，已经在攻击了
+    - 分析一下现有的防守方式；
+- challenges 放到design的第一部分
+- design 后面的部分和challenge一一对应
+- 可以将challenge 中security部分放到一起，再去讲性能
+- NDSS -> 主要强调security
+- attack -> access rate

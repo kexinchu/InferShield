@@ -434,6 +434,62 @@ class RadixCache(BasePrefixCache):
 
         return new_node
 
+    # add by kexinchu --- start
+    def _is_linear_subtree(self, node: TreeNode) -> bool:
+        """Check if a subtree starting from the given node is linear (no branching)"""
+        current = node
+        while current.children:
+            if len(current.children) > 1:
+                return False
+            current = next(iter(current.children.values()))
+        return True
+
+    def _try_merge_linear_subtree(self, node: TreeNode) -> None:
+        """Try to merge a linear subtree if conditions are met"""
+        if not node.children or not self._is_linear_subtree(node):
+            return
+
+        # Collect all nodes in the linear path
+        nodes_to_merge = []
+        current = node
+        while current.children and len(current.children) == 1:
+            next_node = next(iter(current.children.values()))
+            nodes_to_merge.append(next_node)
+            current = next_node
+
+        # Merge all nodes into the root node
+        merged_key = list(node.key)
+        merged_value = list(node.value)
+        
+        for child in nodes_to_merge:
+            merged_key.extend(child.key)
+            merged_value.extend(child.value)
+            
+            # Update hit counts and user lists
+            node.hit_count += child.hit_count
+            node.u_cnt_l.update(child.u_cnt_l)
+            
+            # Remove the child node
+            parent = child.parent
+            if parent:
+                child_key = self.get_child_key_fn(child.key)
+                del parent.children[child_key]
+                self.evictable_size_ -= len(child.key)
+
+        # Update the root node
+        node.key = merged_key
+        node.value = merged_value
+        node.children = current.children  # Keep the last node's children if any
+        
+        # Update the last node's parent reference if it has children
+        if current.children:
+            for child in current.children.values():
+                child.parent = node
+
+        # Record the merge event
+        self._record_store_event(node)
+    # add by kexinchu --- end
+
     def _insert_helper(self, node: TreeNode, key: List, value, user_id: Optional[int] = None):
         node.last_access_time = time.monotonic()
         node.epoch = get_epoch() # add by kexinchu
