@@ -1542,6 +1542,9 @@ class PortArgs:
     scheduler_input_ipc_name: str
     # The ipc filename for detokenizer to receive inputs from scheduler (zmq)
     detokenizer_ipc_name: str
+    # async private judge service
+    private_judge_to_server: str # add by kexinchu
+    private_judge_to_client: str # add by kexinchu
 
     # The port for nccl initialization (torch.dist)
     nccl_port: int
@@ -1566,6 +1569,8 @@ class PortArgs:
                 tokenizer_ipc_name=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}",
                 scheduler_input_ipc_name=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}",
                 detokenizer_ipc_name=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}",
+                private_judge_to_server=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}", # add by kexinchu
+                private_judge_to_client=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}", # add by kexinchu
                 nccl_port=port,
                 rpc_ipc_name=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}",
             )
@@ -1596,6 +1601,8 @@ class PortArgs:
                 tokenizer_ipc_name=f"tcp://{dist_init_host}:{port_base}",
                 scheduler_input_ipc_name=f"tcp://{dist_init_host}:{scheduler_input_port}",
                 detokenizer_ipc_name=f"tcp://{dist_init_host}:{port_base + 1}",
+                private_judge_to_server=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}", # add by kexinchu
+                private_judge_to_client=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}", # add by kexinchu
                 nccl_port=port,
                 rpc_ipc_name=f"tcp://{dist_init_host}:{port_base + 2}",
             )

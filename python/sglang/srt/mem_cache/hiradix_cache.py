@@ -16,10 +16,13 @@ from sglang.srt.mem_cache.memory_pool import (
     TokenToKVPoolAllocator,
 )
 from sglang.srt.mem_cache.radix_cache import RadixCache, TreeNode
-from sglang import get_epoch
+# add by kexinchu --- start
+from sglang import get_epoch 
+from sglang.srt.server_args import ServerArgs, PortArgs 
+from sglang.srt.managers.private_service.private_client import PrivateJudgeClient # add by kexinchu
+# add by kexinchu --- end
 
 logger = logging.getLogger(__name__)
-
 
 class HiRadixCache(RadixCache):
 
@@ -32,6 +35,8 @@ class HiRadixCache(RadixCache):
         hicache_ratio: float,
         hicache_size: int,
         hicache_write_policy: str,
+        server_args: Optional[ServerArgs] = None,   # add by kexinchu
+        port_args: Optional[PortArgs] = None,       # add by kexinchu
     ):
         self.kv_cache = token_to_kv_pool_allocator.get_kvcache()
         if isinstance(self.kv_cache, MHATokenToKVPool):
@@ -55,6 +60,14 @@ class HiRadixCache(RadixCache):
             load_cache_event=self.load_cache_event,
             write_policy=hicache_write_policy,
         )
+
+        # add by kexinchu --- start
+        # Initialize private node client
+        self.private_judge_client = PrivateJudgeClient(
+            server_args=server_args,
+            port_args=port_args,
+        )
+        # add by kexinchu --- end
 
         # record the nodes with ongoing write through
         self.ongoing_write_through = {}

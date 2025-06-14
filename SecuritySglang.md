@@ -117,5 +117,13 @@ HiRadixCache ( RadixCache):
   - **<font color="red">时间窗口: global epoch + self.epoch for Node</font>**
   - **<font color="red">private_sub_tree merge</font>**
   - **<font color="red">logical free for LRU</font>**
+  - **
 
-### Scheduler
+### Privacy Detection (Async)
+- **<font color="red">增加的修改</font>**：
+  - **<font color="red">增加 private_judge_client 异步提交任务，供RadixCache/HiRadixCache调用</font>**：
+  - **<font color="red">增加 private_judge_service 后台处理privacy detection任务</font>**：
+  - 后续拓展：
+    - pattern-aware detection
+    - light-weight model detection
+    - LLM detection

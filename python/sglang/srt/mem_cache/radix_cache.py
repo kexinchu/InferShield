@@ -23,7 +23,7 @@ import heapq
 import time
 from collections import defaultdict
 from functools import partial
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple, Dict
 
 import torch
 
@@ -40,8 +40,11 @@ from sglang.srt.mem_cache.memory_pool import ReqToTokenPool, TokenToKVPoolAlloca
 if TYPE_CHECKING:
     from sglang.srt.managers.schedule_batch import Req
 
-# add by kexinchu
+# add by kexinchu --- start
 from sglang import get_epoch
+from sglang.srt.server_args import ServerArgs, PortArgs
+from sglang.srt.managers.private_service.private_client import PrivateJudgeClient
+# add by kexinchu --- end
 
 class TreeNode:
 
@@ -66,6 +69,7 @@ class TreeNode:
 
         # add by kexinchu --- start
         self.private = True  # default is private node
+        self.need_check_privacy = True
         self.owner_id = None
         self.u_cnt_l = set() # the hit user_id list
         self.hit_pre = 0
@@ -114,6 +118,8 @@ class RadixCache(BasePrefixCache):
         page_size: int,
         disable: bool = False,
         enable_kv_cache_events: bool = False,
+        server_args: Optional[ServerArgs] = None,   # add by kexinchu
+        port_args: Optional[PortArgs] = None,       # add by kexinchu
     ):
         self.req_to_token_pool = req_to_token_pool
         self.token_to_kv_pool_allocator = token_to_kv_pool_allocator
@@ -121,6 +127,14 @@ class RadixCache(BasePrefixCache):
         self.disable = disable
         self.enable_kv_cache_events = enable_kv_cache_events
         self.kv_event_queue = []
+
+        # add by kexinchu --- start
+        # Initialize private node client
+        self.private_judge_client = PrivateJudgeClient(
+            server_args=server_args,
+            port_args=port_args,
+        )
+        # add by kexinchu --- end
 
         if self.token_to_kv_pool_allocator:
             self.device = self.token_to_kv_pool_allocator.device
@@ -394,7 +408,17 @@ class RadixCache(BasePrefixCache):
         new_node.value = child.value[:split_len]
         # add by kexinchu --- start
         new_node.owner_id = child.owner_id 
-        new_node.private = child.private
+        if not child.need_check_privacy:
+            new_node.private = child.private # 保留原本node的private状态
+        else:
+            # Update privacy status for the new node
+            try:
+                result = self.private_judge_client.update_privacy(
+                    node_id=new_node,
+                    prompt = child.key,
+                )
+            except Exception as e:
+                print(f"Error updating node privacy: {e}")
         new_node.u_cnt_l = child.u_cnt_l
         new_node.hit_pre = child.hit_pre
         new_node.u_cnt_pre = child.u_cnt_pre
@@ -440,7 +464,13 @@ class RadixCache(BasePrefixCache):
             new_node.parent = node
             new_node.key = key
             new_node.value = value
-            new_node.owner_id = user_id # add by kexinchu
+            # add by kexinchu --- start
+            self.private_judge_client.update_privacy(
+                node_id=new_node,
+                prompt = key,
+            )
+            new_node.owner_id = user_id
+            # add by kexinchu --- end
             node.children[child_key] = new_node
             self.evictable_size_ += len(value)
             self._record_store_event(new_node)

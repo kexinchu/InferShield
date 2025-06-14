@@ -528,6 +528,8 @@ class Scheduler(
                     hicache_ratio=server_args.hicache_ratio,
                     hicache_size=server_args.hicache_size,
                     hicache_write_policy=server_args.hicache_write_policy,
+                    server_args=self.server_args,
+                    port_args=self.port_args,
                 )
             else:
                 self.tree_cache = RadixCache(
@@ -536,6 +538,8 @@ class Scheduler(
                     page_size=self.page_size,
                     disable=server_args.disable_radix_cache,
                     enable_kv_cache_events=self.enable_kv_cache_events,
+                    server_args=self.server_args,
+                    port_args=self.port_args,
                 )
 
         self.decode_mem_cache_buf_multiplier = (
