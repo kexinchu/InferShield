@@ -15,6 +15,7 @@
   requests -> ReqToTokenPool(转换为token id lists) -> TokenToKVPoolAllocator(为每个token分配KV Cache空间) -> RadixCache(将KV-Cache管理在RadixTree中，方便share)
 ```
 
+## 进度：06/08/25-06/14/25
 ### request dataflow
 - 用户通过 /v1/chat/completions 提交request
 ```shell
@@ -115,9 +116,8 @@ HiRadixCache ( RadixCache):
 - **<font color="red">增加的修改</font>**：
   - **<font color="red">为node增加private/public, owner_id, hit_cur, u_cnt_l, hit_pre, u_pre</font>**
   - **<font color="red">时间窗口: global epoch + self.epoch for Node</font>**
-  - **<font color="red">private_sub_tree merge</font>**
-  - **<font color="red">logical free for LRU</font>**
-  - **
+    - 注意：这里全局参数 epoch 需要实验确认
+
 
 ### Privacy Detection (Async)
 - **<font color="red">增加的修改</font>**：
@@ -127,3 +127,33 @@ HiRadixCache ( RadixCache):
     - pattern-aware detection
     - light-weight model detection
     - LLM detection
+
+
+## 进度：06/15/25-06/21/25
+### RadixCache / HiRadixCache
+- **<font color="red">增加的修改</font>**：
+  - **<font color="red">private_sub_tree merge</font>**
+    - merge when insert
+    - search
+    - evict
+  - **<font color="red">logical free for LRU</font>**
+  - **<font color="red">LRU 基于epoch</font>**
+  - **<font color="red">计算分布熵</font>**
+    - 注意：这里全局 hit_cur_threshold 需要实验确认
+
+
+### Privacy Detection (Async)
+- **<font color="red">增加的修改</font>**：
+  - **<font color="red">修改为完全异步处理逻辑：三级Queue + batch处理</font>**：
+  - **<font color="red">pattern-aware detection</font>**：
+    - 继续找一些pattern
+  - **<font color="red">light-weight model detection</font>**：
+    - distilBert
+  - 后续拓展：
+    - LLM detection; 应该直接复用后台的模型，将request合并的scheduler一起去调度，并且识别后返回
+      - 模型size + QPS => 硬件开销大
+      - 回答：为什么使用这么模型？
+      => 直接使用后台运行的那个LLM model
+      => 是不是需要有一个比较： “横轴models - 纵轴 detect accuracy” ？
+      => 问题：这样做，对正常请求的queuing delay/end-2-end latency的 比较： 横轴 x% 的detection req -> latency
+      => 整体的QPS + 第三个阶段的x%

@@ -15,15 +15,15 @@
     - 除了存在固定pattern的隐私信息，还包括复杂/上下文关联的隐私信息
     - light-weight + real-time
     - 支持根据场景定制privacy 类型(例如：企业内部数据,特定领域术语等)；适应复杂也现实场景
+- 针对检测失败的兜底方法
+    - 针对KV-Cache Reuse的侧信道攻击依赖多次对 KV-Cache block的 "试探"；会导致单一"用户"对某些KV-Cache block的命中大幅增加； -> 最简单的方法是通针对用户行为的单点检测来识别attacks
+    - 现实中，并不能假定单个攻击者，attackers可能会控制多个账号来协同攻击，以绕过单点检测。如：Attackers 通过多个账号分别低频率探查不同部分，使任何单账户行为看似正常，却在整体上实现了高频覆盖。
 - 如何管理 private/public KV-Cache
     - 避免数据的重复存储：优化 HBM/DRAM 资源占用
     - 支持快速的 prefix-prompt Search；避免给LLM inference造成penalty
         - 支持自适应node 合并，降低search深度
     - 支持快速的 数据插入 (private/public insert) 和 自适应的数据删除
         - 自适应删除：private 数据因为其使用频率较低，需要避免一次性删除一整个节点 => 避免用户激活requests时出现 long prefix prompt's KV-Cache Miss
-- 针对检测失败的兜底方法
-    - 针对KV-Cache Reuse的侧信道攻击依赖多次对 KV-Cache block的 "试探"；会导致单一"用户"对某些KV-Cache block的命中大幅增加； -> 最简单的方法是通针对用户行为的单点检测来识别attacks
-    - 现实中，并不能假定单个攻击者，attackers可能会控制多个账号来协同攻击，以绕过单点检测。如：Attackers 通过多个账号分别低频率探查不同部分，使任何单账户行为看似正常，却在整体上实现了高频覆盖。
 
 #### Design
 - 0， 舍弃 SafeKV-固定分块 思路的原因
@@ -75,7 +75,10 @@
     - 思路：基于时间窗口的Monitor + 分布熵判断
         - 即使使用多账号协同攻击，也会造成单个账号的访问频率增加
         - 对于每一个KV-Cache block，记录：hit_cur, u_cnt, hit_pre, u_pre
-        - 每个时间窗口计算：entropy = u_cnt/hit_cur, entropy低表示少数账号占多次访问，高entropy表示访问比较分散
+        - 60s
+        - 100次 hit  10  0.1；
+        -            50  0.5
+        - 每个时间窗口计算：entropy = usr_cnt/hit_cur, entropy低/高表示少数账号占多次访问，高entropy表示访问比较分散
         - 通过直接判断 entropy 判断 少量找好直接攻击的情况； 通过hit_cur >> hit_pre + entropy_now > entropy_pre的方式来判断 多账号协同攻击
         - 根据pre的情况来判断是否需要将当前block升级成private
             - if u_pre 较大，说明当前block被多个user使用，认定为公共前缀，不做修改

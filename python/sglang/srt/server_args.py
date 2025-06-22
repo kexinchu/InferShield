@@ -1545,6 +1545,9 @@ class PortArgs:
     # async private judge service
     private_judge_to_server: str # add by kexinchu
     private_judge_to_client: str # add by kexinchu
+    # DistilBERT privacy detection service
+    distillbert_service_port: str # DistilBERT service receives requests
+    distillbert_client_port: str # DistilBERT service sends responses
 
     # The port for nccl initialization (torch.dist)
     nccl_port: int
@@ -1571,6 +1574,8 @@ class PortArgs:
                 detokenizer_ipc_name=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}",
                 private_judge_to_server=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}", # add by kexinchu
                 private_judge_to_client=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}", # add by kexinchu
+                distillbert_service_port=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}", # DistilBERT service port
+                distillbert_client_port=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}", # DistilBERT client port
                 nccl_port=port,
                 rpc_ipc_name=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}",
             )
@@ -1603,6 +1608,8 @@ class PortArgs:
                 detokenizer_ipc_name=f"tcp://{dist_init_host}:{port_base + 1}",
                 private_judge_to_server=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}", # add by kexinchu
                 private_judge_to_client=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}", # add by kexinchu
+                distillbert_service_port=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}", # DistilBERT service port
+                distillbert_client_port=f"ipc://{tempfile.NamedTemporaryFile(delete=False).name}", # DistilBERT client port
                 nccl_port=port,
                 rpc_ipc_name=f"tcp://{dist_init_host}:{port_base + 2}",
             )

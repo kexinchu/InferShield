@@ -44,6 +44,8 @@ if TYPE_CHECKING:
 from sglang import get_epoch
 from sglang.srt.server_args import ServerArgs, PortArgs
 from sglang.srt.managers.private_service.private_client import PrivateJudgeClient
+
+THRESHOLD = 10 
 # add by kexinchu --- end
 
 class TreeNode:
@@ -56,7 +58,7 @@ class TreeNode:
         self.key = None
         self.value = None
         self.lock_ref = 0
-        self.last_access_time = time.monotonic()
+        # self.last_access_time = time.monotonic()
 
         self.hit_count = 0 # already have hit_count
         # indicating the node is loading KV cache from host
@@ -75,6 +77,10 @@ class TreeNode:
         self.hit_pre = 0
         self.u_cnt_pre = 0 # 上一个time_window的hit_user_count
         self.epoch = get_epoch()
+        self.after_merged = False # 是否被合并过 (合并)
+        self.merged_key = []
+        self.merged_value = []
+        self.is_sub_root = False # 是否是隐私节点合并后的根节点
         # add by kexinchu --- end
 
     @property
@@ -85,8 +91,12 @@ class TreeNode:
     def backuped(self):
         return self.host_value is not None
 
+    # add by kexinchu --- start
     def __lt__(self, other: "TreeNode"):
-        return self.last_access_time < other.last_access_time
+        # 改为使用epoch
+        # return self.last_access_time < other.last_access_time
+        return self.epoch < other.epoch
+    # add by kexinchu --- end
 
 
 def _key_match_page_size1(key0: List, key1: List):
@@ -290,6 +300,7 @@ class RadixCache(BasePrefixCache):
             return
 
         leaves = self._collect_leaves()
+        # 借助heapq
         heapq.heapify(leaves)
 
         num_evicted = 0
@@ -300,12 +311,22 @@ class RadixCache(BasePrefixCache):
                 break
             if x.lock_ref > 0:
                 continue
-
-            self.token_to_kv_pool_allocator.free(x.value)
-            num_evicted += len(x.value)
+            
+            # add by kexinchu --- start
+            if x.after_merged:
+                self.token_to_kv_pool_allocator.free(x.value.merged_value[-1])
+                num_evicted += len(x.value.merged_value[-1])
+                x.value.merged_value.pop()
+                x.value.merged_key.pop()
+            else:
+                num_evicted += len(x.value)
+                self.token_to_kv_pool_allocator.free(x.value)
             self._delete_leaf(x)
+            # add by kexinchu --- end
 
             if len(x.parent.children) == 0:
+                if x.parent.after_merged: # add by kexinchu
+                    x.epoch = x.value.epoch # add by kexinchu
                 heapq.heappush(leaves, x.parent)
 
             self._record_remove_event(x)
@@ -359,7 +380,7 @@ class RadixCache(BasePrefixCache):
     ##### Internal Helper Functions #####
 
     def _match_prefix_helper(self, node: TreeNode, key: List, user_id: Optional[int] = None):
-        node.last_access_time = time.monotonic()
+        # node.last_access_time = time.monotonic()
         node.epoch = get_epoch() # add by kexinchu
         child_key = self.get_child_key_fn(key)
 
@@ -367,9 +388,37 @@ class RadixCache(BasePrefixCache):
         while len(key) > 0 and child_key in node.children.keys():
             child = node.children[child_key]
             # add by kexinchu --- start
-            if user_id is not None and child.private: # private node, check owner_id
-                if child.owner_id != user_id:
+            if child.private:
+                if user_id is not None and child.owner_id != user_id:
                     break
+                # child.last_access_time = time.monotonic()
+                prefix_len = self.key_match_fn(child.key, key)
+                if prefix_len < len(child.key):
+                    # private node, 不尝试split <= 因为有node合并
+                    break
+                else:
+                    value.append(child.value)
+                    node = child
+                    key = key[prefix_len:]
+
+                    if len(key):
+                        child_key = self.get_child_key_fn(key)
+            else:
+                # child.last_access_time = time.monotonic()
+                prefix_len = self.key_match_fn(child.key, key)
+                if prefix_len < len(child.key):
+                    new_node = self._split_node(child.key, child, prefix_len)
+                    value.append(new_node.value)
+                    node = new_node
+                    break
+                else:
+                    value.append(child.value)
+                    node = child
+                    key = key[prefix_len:]
+
+                    if len(key):
+                        child_key = self.get_child_key_fn(key)
+
             if child.epoch < get_epoch(): # next time windows;
                 child.u_cnt_pre = len(child.u_cnt_l)
                 child.u_cnt_l = set([user_id])
@@ -378,24 +427,33 @@ class RadixCache(BasePrefixCache):
             else:
                 child.u_cnt_l.add(user_id)
                 child.hit_count += 1
+                if child.hit_count > child.hit_pre * THRESHOLD:
+                    self._free_with_entropy(child)
             child.epoch = get_epoch()
             # add by kexinchu --- end
-            child.last_access_time = time.monotonic()
-            prefix_len = self.key_match_fn(child.key, key)
-            if prefix_len < len(child.key):
-                new_node = self._split_node(child.key, child, prefix_len)
-                value.append(new_node.value)
-                node = new_node
-                break
-            else:
-                value.append(child.value)
-                node = child
-                key = key[prefix_len:]
-
-                if len(key):
-                    child_key = self.get_child_key_fn(key)
 
         return value, node
+    
+    # add by kexinchu --- start
+    def _free_with_entropy(self, node: TreeNode):
+        # 计算分布熵
+        entropy_pre = node.hit_pre / node.u_cnt_pre
+        entropy_cur = node.hit_count / len(node.u_cnt_l)
+        if entropy_cur < THRESHOLD * entropy_pre:
+            # 正常区间
+            return
+        else:
+            # 异常区间: 将以此节点为根的子树free
+            release_nodes = [node]
+            while len(release_nodes):
+                x = release_nodes.pop()
+                if x.lock_ref > 0:
+                    continue
+                release_nodes.extend(x.children.values())
+                self.token_to_kv_pool_allocator.free(x.value)
+                self._delete_leaf(x)
+                self._record_remove_event(x)
+    # add by kexinchu --- end
 
     def _split_node(self, key, child: TreeNode, split_len: int):
         # new_node -> child
@@ -444,54 +502,50 @@ class RadixCache(BasePrefixCache):
             current = next(iter(current.children.values()))
         return True
 
-    def _try_merge_linear_subtree(self, node: TreeNode) -> None:
-        """Try to merge a linear subtree if conditions are met"""
-        if not node.children or not self._is_linear_subtree(node):
-            return
+    def _try_merge_subtree_when_insert(self, node: TreeNode, key: List, value: List, user_id: Optional[int] = None) -> int:
+        """Try to merge private subtree"""
+        # node.last_access_time = time.monotonic()
+        node.epoch = get_epoch()
+        if len(key) == 0:
+            return 0
+        # step1, set sub_root
+        if not node.is_sub_root and (node.private and not node.need_check_privacy):
+            node.is_sub_root = True
+            node.merged_key = [node.key]
+            node.merged_value = [node.value]
+            node.after_merged = True
 
-        # Collect all nodes in the linear path
-        nodes_to_merge = []
-        current = node
-        while current.children and len(current.children) == 1:
-            next_node = next(iter(current.children.values()))
-            nodes_to_merge.append(next_node)
-            current = next_node
+        total_prefix_length = 0
+        # step2, push key/value into merged_key/merged_value
+        leaf_node = node
+        for i in range(len(node.merged_key)):            
+            prefix_len = self.key_match_fn(node.merged_key[i], key)
+            total_prefix_length += prefix_len
+            key = key[prefix_len:]
+            value = value[prefix_len:]
+            leaf_node = leaf_node.children[self.get_child_key_fn(node.merged_key[i])]
+        node.merged_key.append(key)
+        node.merged_value.append(value)
 
-        # Merge all nodes into the root node
-        merged_key = list(node.key)
-        merged_value = list(node.value)
+        # step3, insert new node (logical)
+        if len(key):
+            new_node = TreeNode()
+            new_node.parent = leaf_node
+            new_node.key = key
+            new_node.value = node
+            new_node.private = True
+            new_node.need_check_privacy = True
+            new_node.after_merged = True
+            new_node.owner_id = user_id
+            node.children[self.get_child_key_fn(key)] = new_node
+            self.evictable_size_ += len(value)
+            self._record_store_event(new_node)
         
-        for child in nodes_to_merge:
-            merged_key.extend(child.key)
-            merged_value.extend(child.value)
-            
-            # Update hit counts and user lists
-            node.hit_count += child.hit_count
-            node.u_cnt_l.update(child.u_cnt_l)
-            
-            # Remove the child node
-            parent = child.parent
-            if parent:
-                child_key = self.get_child_key_fn(child.key)
-                del parent.children[child_key]
-                self.evictable_size_ -= len(child.key)
-
-        # Update the root node
-        node.key = merged_key
-        node.value = merged_value
-        node.children = current.children  # Keep the last node's children if any
-        
-        # Update the last node's parent reference if it has children
-        if current.children:
-            for child in current.children.values():
-                child.parent = node
-
-        # Record the merge event
-        self._record_store_event(node)
+        return total_prefix_length
     # add by kexinchu --- end
 
     def _insert_helper(self, node: TreeNode, key: List, value, user_id: Optional[int] = None):
-        node.last_access_time = time.monotonic()
+        # node.last_access_time = time.monotonic()
         node.epoch = get_epoch() # add by kexinchu
         if len(key) == 0:
             return 0
@@ -500,8 +554,17 @@ class RadixCache(BasePrefixCache):
 
         total_prefix_length = 0
         while len(key) > 0 and child_key in node.children.keys():
+            # add by kexinchu --- start
+            # 1, private node, 检查user是否匹配
+            if node.private and user_id != node.owner_id:
+                break
+            # 2，如果是private node，尝试合并tree
+            if node.is_sub_root or (node.private and not node.need_check_privacy):
+                total_prefix_length += self._try_merge_subtree_when_insert(node, key, value, user_id)
+                break
+            # add by kexinchu --- end
             node = node.children[child_key]
-            node.last_access_time = time.monotonic()
+            # node.last_access_time = time.monotonic()
             node.epoch = get_epoch() # add by kexinchu
             prefix_len = self.key_match_fn(node.key, key)
             total_prefix_length += prefix_len
@@ -570,12 +633,15 @@ class RadixCache(BasePrefixCache):
         return total_size
 
     def _collect_leaves(self):
+        # 获取所有叶子节点，并返回一个列表
         ret_list = []
         stack = [self.root_node]
 
         while stack:
             cur_node = stack.pop()
             if len(cur_node.children) == 0:
+                if cur_node.after_merged:
+                    cur_node.epoch = cur_node.value.epoch
                 ret_list.append(cur_node)
             else:
                 stack.extend(cur_node.children.values())
