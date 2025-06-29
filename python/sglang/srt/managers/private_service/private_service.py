@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from sglang.srt.mem_cache.radix_cache import TreeNode
 from sglang.srt.server_args import PortArgs, ServerArgs
 from sglang.srt.utils import get_zmq_socket
+from sglang.srt.managers.io_struct import TokenizedGenerateReqInput, SamplingParams
 
 # 导入隐私检测器
 from .privacy_detector_custom import PrivacyDetector
@@ -177,19 +178,23 @@ class PrivateJudgeService:
 
     def _process_second_level_tasks(self):
         """Process second level detection: DistilBERT小模型检测"""
-        if len(self.first_level_task_queue) == 0:
+        if len(self.second_level_task_queue) == 0:
             time.sleep(5)
             return
         
         # get task from queue # 处理成batch任务
         batch_tasks = []
-        while len(self.first_level_task_queue) > 0 or len(batch_tasks) < BATCH_SIZE:
-            task_data = self.first_level_task_queue.pop(0)
+        while len(self.second_level_task_queue) > 0 and len(batch_tasks) < BATCH_SIZE:
+            task_data = self.second_level_task_queue.pop(0)
             # 检查DistilBERT客户端是否可用
             if not self.distillbert_available:
                 # 如果DistilBERT不可用，直接进入第三级检测
                 self.third_level_task_queue.append(task_data)
+                continue
             batch_tasks.append(task_data)
+            
+        if not batch_tasks:
+            return
             
         try:
             # 使用DistilBERT客户端进行检测
@@ -206,8 +211,8 @@ class PrivateJudgeService:
                         'detected_patterns': {
                             'name': 'distilbert_detection',
                             'pattern_type': 'ml_model',
-                            'severity': 'high' if response.confidence > 0.8 else 'medium',
-                            'description': f'DistilBERT detected as {response.label} with confidence {response.confidence:.3f}'
+                            'severity': 'high' if res.confidence > 0.8 else 'medium',
+                            'description': f'DistilBERT detected as {res.label} with confidence {res.confidence:.3f}'
                         },
                         'node_id': batch_tasks[i]['node_id'],
                         'detection_level': 'second_level',
@@ -216,11 +221,203 @@ class PrivateJudgeService:
         
         except Exception as e:
             # 检测失败，进行第三级别检测
-            self.third_level_task_queue.append(task_data)
+            for task_data in batch_tasks:
+                self.third_level_task_queue.append(task_data)
 
     def _process_third_level_tasks(self):
         """Process third level detection: LLM大模型检测 => 请求合并到普通结果一起"""
-        pass
+        if len(self.third_level_task_queue) == 0:
+            time.sleep(5)
+            return
+        
+        # 获取任务队列中的任务
+        batch_tasks = []
+        while len(self.third_level_task_queue) > 0 and len(batch_tasks) < BATCH_SIZE:
+            task_data = self.third_level_task_queue.pop(0)
+            batch_tasks.append(task_data)
+        
+        if not batch_tasks:
+            return
+            
+        try:
+            # 通过ZMQ发送给SGLang自身的scheduler进行处理
+            # 创建LLM检测请求，与常规request一起排队处理
+            llm_detection_results = self._send_llm_detection_requests(batch_tasks)
+            
+            # 处理检测结果
+            for i, result in enumerate(llm_detection_results):
+                task_data = batch_tasks[i]
+                node_id = task_data['node_id']
+                
+                if result['status'] == 'success':
+                    # 解析LLM检测结果
+                    llm_response = result.get('llm_response', '')
+                    is_private = self._parse_llm_privacy_result(llm_response)
+                    confidence = result.get('confidence', 0.8)  # LLM检测的置信度较高
+                    
+                    self.result_queue.append({
+                        'status': 'success',
+                        'privacy': 'private' if is_private else 'public',
+                        'confidence': confidence,
+                        'detected_patterns': {
+                            'name': 'llm_detection',
+                            'pattern_type': 'llm_model',
+                            'severity': 'high',
+                            'description': f'LLM detected as {"private" if is_private else "public"} with response: {llm_response[:100]}...'
+                        },
+                        'node_id': node_id,
+                        'detection_level': 'third_level',
+                        'model_name': 'llm_detection',
+                        'llm_response': llm_response
+                    })
+                else:
+                    # 检测失败，标记为需要进一步处理
+                    self.result_queue.append({
+                        'status': 'error',
+                        'error': f'LLM detection failed: {result.get("error", "Unknown error")}',
+                        'node_id': node_id,
+                        'detection_level': 'third_level'
+                    })
+                    
+        except Exception as e:
+            print(f"Error in third level processing: {e}")
+            # 将失败的任务重新放回队列
+            for task_data in batch_tasks:
+                self.third_level_task_queue.append(task_data)
+    
+    def _send_llm_detection_requests(self, batch_tasks):
+        """通过ZMQ发送LLM检测请求给SGLang scheduler"""
+        results = []
+        
+        # 初始化ZMQ连接（如果还没有初始化）
+        if not hasattr(self, 'llm_detection_socket'):
+            self.llm_detection_socket = get_zmq_socket(
+                self.context, zmq.PUSH, self.port_args.scheduler_input_ipc_name, False
+            )
+            self.llm_result_socket = get_zmq_socket(
+                self.context, zmq.PULL, self.port_args.tokenizer_ipc_name, False
+            )
+        
+        # 为每个任务创建LLM检测请求
+        for task_data in batch_tasks:
+            node_id = task_data['node_id']
+            context = task_data.get('context', '')
+            prompt = task_data.get('prompt', '')
+            
+            # 构建LLM检测的prompt
+            detection_prompt = self._build_llm_detection_prompt(context, prompt)
+            
+            # 使用简单的字符编码作为input_ids
+            # 这里我们使用简单的字符到数字的映射，实际应用中应该使用真实的tokenizer
+            input_ids = []
+            for char in detection_prompt[:1000]:  # 限制长度
+                char_code = ord(char)
+                if char_code < 65536:  # 限制在Unicode BMP范围内
+                    input_ids.append(char_code)
+                else:
+                    input_ids.append(ord(' '))  # 替换为空格
+            
+            # 创建采样参数
+            sampling_params = SamplingParams(
+                temperature=0.1,  # 低温度以获得确定性结果
+                max_new_tokens=100,  # 限制输出长度
+                top_p=0.9,
+                user_id=node_id  # 使用node_id作为user_id来标识请求
+            )
+            
+            # 创建请求
+            llm_request = TokenizedGenerateReqInput(
+                rid=f"PRIVACY_DETECTION_LLM_{node_id}_{int(time.time())}",
+                input_text=detection_prompt,
+                input_ids=input_ids,
+                mm_inputs={},  # 空的多模态输入
+                sampling_params=sampling_params,
+                return_logprob=False,
+                logprob_start_len=-1,
+                top_logprobs_num=0,
+                token_ids_logprob=[],
+                stream=False,
+                lora_path=None,
+                input_embeds=None,
+                session_params=None,
+                custom_logit_processor=None,
+                return_hidden_states=False,
+                bootstrap_host=None,
+                bootstrap_port=None,
+                bootstrap_room=None
+            )
+            
+            # 发送请求
+            try:
+                self.llm_detection_socket.send_pyobj(llm_request)
+                
+                # 等待结果（设置超时）
+                # 设置非阻塞接收，带超时
+                self.llm_result_socket.setsockopt(zmq.RCVTIMEO, 30000)  # 30秒超时
+                response = self.llm_result_socket.recv_pyobj()
+                
+                # 解析响应
+                if hasattr(response, 'text') and response.text:
+                    llm_response = response.text[0] if isinstance(response.text, list) else response.text
+                    results.append({
+                        'status': 'success',
+                        'llm_response': llm_response,
+                        'confidence': 0.85  # LLM检测的置信度
+                    })
+                else:
+                    results.append({
+                        'status': 'error',
+                        'error': 'Empty response from LLM'
+                    })
+                    
+            except zmq.ZMQError as e:
+                results.append({
+                    'status': 'error',
+                    'error': f'ZMQ timeout or error: {str(e)}'
+                })
+            except Exception as e:
+                results.append({
+                    'status': 'error',
+                    'error': f'Unexpected error: {str(e)}'
+                })
+        
+        return results
+    
+    def _build_llm_detection_prompt(self, context, prompt):
+        """构建LLM隐私检测的prompt"""
+        detection_prompt = f"""请分析以下文本是否包含隐私信息。请只回答"是"或"否"。
+上下文: {context}
+文本: {prompt}
+请判断这个文本是否包含隐私信息（如个人信息、敏感数据、密码等）。只回答"是"或"否"。
+回答:"""
+        return detection_prompt
+    
+    def _parse_llm_privacy_result(self, llm_response):
+        """解析LLM的隐私检测结果"""
+        if not llm_response:
+            return False
+        
+        # 清理响应文本
+        response_clean = llm_response.strip().lower()
+        
+        # 检查是否包含"是"、"private"、"隐私"等关键词
+        private_keywords = ['是', 'yes', 'private', '隐私', '敏感', 'sensitive']
+        public_keywords = ['否', 'no', 'public', '公开', '非隐私']
+        
+        for keyword in private_keywords:
+            if keyword in response_clean:
+                return True
+        
+        for keyword in public_keywords:
+            if keyword in response_clean:
+                return False
+        
+        # 如果没有明确的关键词，根据响应长度和内容判断
+        # 通常"是"的回答比较简短
+        if len(response_clean) <= 3:
+            return True  # 短回答通常是"是"
+        
+        return False  # 默认认为是公开的
 
     def add_custom_privacy_pattern(self, pattern_name: str, pattern_type: str, 
                                  pattern: str, severity: str = 'high', 

@@ -609,6 +609,10 @@ class Req:
         self.tmp_end_idx: int = -1
         self.metadata_buffer_index: int = -1
         self.user_id: int = user_id # add by kexinchu
+        
+        # For privacy detection requests
+        self.is_privacy_detection: bool = False
+        self.priority: int = 0  # 0 = normal, 1 = high priority
 
     @property
     def seqlen(self):
