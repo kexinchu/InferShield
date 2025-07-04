@@ -30,12 +30,13 @@ class PrivateNodeTask:
     task_type: str  # 'check_private', 'update_private', 'cleanup_private'
     context: str    # 上下文信息
     prompt: str     # 提示词
+    request_id: str
     timestamp: float = time.time()
 
-@dataclass
-class BatchTasks:
-    tasks: List[PrivateNodeTask]
-    timestamp: float
+# @dataclass
+# class BatchTasks:
+#     tasks: List[PrivateNodeTask]
+#     timestamp: float
 
 class PrivateJudgeService:
     def __init__(self, 
@@ -173,47 +174,42 @@ class PrivateJudgeService:
             time.sleep(5)
             return
         
-        # get task from queue # 处理成batch任务
-        batch_tasks = []
-        while len(self.second_level_task_queue) > 0 and len(batch_tasks) < BATCH_SIZE:
+        # send req to pii model
+        wait_for_answer = []
+        while len(self.second_level_task_queue) > 0:
             task_data = self.second_level_task_queue.pop(0)
             # 检查PiiBERT客户端是否可用
             if not self.pii_bert_available:
                 # 如果PiiBERT不可用，直接进入第三级检测
                 self.third_level_task_queue.append(task_data)
                 continue
-            batch_tasks.append(task_data)
-            
-        if not batch_tasks:
-            return
-            
-        try:
-            # 使用PiiBERT客户端进行检测
-            response = self.pii_bert_client.detect_privacy_sync(batch_tasks, timeout=10.0)
-            for i, res in enumerate(response):
-                # 如果未检测到privacy，进行第三级检测
-                if LOW_QUALITY_THRESHOLD < res.confidence < HIGH_QUALITY_THRESHOLD:
-                    self.third_level_task_queue.append(batch_tasks[i])
-                else:
-                    self.result_queue.append({
-                        'status': 'success',
-                        'privacy': 'private' if res.is_private else 'public',
-                        'confidence': res.confidence,
-                        'detected_patterns': {
-                            'name': 'PiiBERT_detection',
-                            'pattern_type': 'ml_model',
-                            'severity': 'high' if res.confidence > 0.8 else 'medium',
-                            'description': f'PiiBERT detected as {res.label} with confidence {res.confidence:.3f}'
-                        },
-                        'node_id': batch_tasks[i]['node_id'],
-                        'detection_level': 'second_level',
-                        'model_name': res.model_name,
-                    })
+            task_data.request_id = self.pii_bert_client.detect_privacy(task_data.prompt)
+            wait_for_answer.append(task_data)
         
-        except Exception as e:
-            # 检测失败，进行第三级别检测
-            for task_data in batch_tasks:
+        # 获取结果
+        while(len(wait_for_answer) > 0):
+            task_data = wait_for_answer.pop(0)
+            # 使用PiiBERT客户端进行检测
+            res = self.pii_bert_client.detect_privacy_sync(task_data.request_id)
+            
+            if LOW_QUALITY_THRESHOLD < res.confidence < HIGH_QUALITY_THRESHOLD:
                 self.third_level_task_queue.append(task_data)
+            else:
+                self.result_queue.append({
+                    'status': 'success',
+                    'privacy': 'private' if res.is_private else 'public',
+                    'confidence': res.confidence,
+                    'detected_patterns': {
+                        'name': 'PiiBERT_detection',
+                        'pattern_type': 'ml_model',
+                        'severity': 'high' if res.confidence > 0.9 else 'medium',
+                    },
+                    'node_id': task_data.node.node_id,
+                    'detection_level': 'second_level',
+                    'model_name': res.model_name,
+                })
+            # 清理memory 空间
+            self.pii_bert_client.free_cache(task_data.request_id)
 
     def _process_third_level_tasks(self):
         """Process third level detection: LLM大模型检测 => 请求合并到普通结果一起"""

@@ -99,7 +99,7 @@ class PiiPrivacyDetector:
         self.ignore_label_ids = torch.tensor(
             [self.pii_model.config.label2id[l] for l in self.ignore_labels],
             dtype=torch.long
-        )
+        ).to(self.device)
         # 加载通用模型
         self.gene_tokenizer = AutoTokenizer.from_pretrained(self.gene_model_name, trust_remote_code=True)
         self.gene_model = AutoModelForCausalLM.from_pretrained(self.gene_model_name, trust_remote_code=True)
@@ -212,7 +212,7 @@ Answer:"""
         batched_index_gene = []
         # 使用pii检测
         is_private_mask, probs = self.detect_privacy_pii(texts)
-        for idx in range(is_private_mask.shape[0]):  # 遍历batch
+        for idx in range(len(texts)):  # 遍历batch
             token_mask = is_private_mask[idx]  # [seq_len]
             contains_privacy = token_mask.any().item()
             if contains_privacy:
@@ -318,11 +318,15 @@ class PiiPrivacyService:
         # 初始化ZMQ
         self.context = zmq.Context(2)
         self.recv_socket = get_zmq_socket(
-            self.context, zmq.PULL, port_args.distillbert_service_port, False
+            self.context, zmq.PULL, port_args.distillbert_service_port, True  # bind=True for server
         )
         self.send_socket = get_zmq_socket(
-            self.context, zmq.PUSH, port_args.distillbert_client_port, False
+            self.context, zmq.PUSH, port_args.distillbert_client_port, True  # bind=True for server
         )
+        
+        print(f"Server bound to:")
+        print(f"  Service port: {port_args.distillbert_service_port}")
+        print(f"  Client port: {port_args.distillbert_client_port}")
         
         # 初始化处理线程
         self.processing_thread = threading.Thread(

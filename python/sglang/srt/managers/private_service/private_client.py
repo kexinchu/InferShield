@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from sglang.srt.mem_cache.radix_cache import TreeNode
 from sglang.srt.server_args import PortArgs, ServerArgs
-from sglang.srt.managers.private_service.private_service import PrivateNodeTask, BatchTasks
+from sglang.srt.managers.private_service.private_service import PrivateNodeTask
 from sglang.srt.utils import get_zmq_socket
 
 class PrivateJudgeClient:
@@ -60,6 +60,7 @@ class PrivateJudgeClient:
             task_type='update_private',
             context=context,
             prompt=prompt,
+            request_id="",
             timestamp=time.time(),
         )
         self.task_queue.put(task)
@@ -102,7 +103,7 @@ class PrivateJudgeClient:
             # Prepare batch message
             batch_message = {
                 'batch': [{
-                    'node_id': task.node_id,
+                    'node_id': task.node.id,
                     'task_type': task.task_type,
                     'context': task.context,
                     'prompt': task.prompt,
