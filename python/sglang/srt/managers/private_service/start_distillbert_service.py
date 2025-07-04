@@ -10,7 +10,7 @@ import os
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../../../'))
 
-from privacy_detector_distillbert import DistilBERTPrivacyService
+from privacy_detector_piiranha import PiiPrivacyDetector
 from sglang.srt.server_args import ServerArgs, PortArgs
 
 def setup_logging(log_level: str = "info"):
@@ -54,7 +54,7 @@ def main():
         
         # 启动服务
         logger.info("正在启动DistilBERT隐私检测服务...")
-        service = DistilBERTPrivacyService(
+        service = PiiPrivacyDetector(
             server_args=server_args,
             port_args=port_args,
             model_name=args.model_name,

@@ -27,6 +27,27 @@
             "pattern_type": "trie",
             "severity": "critical",
             "description": "个人身份信息"
+        },
+        {
+            "name": "device_identifiers",
+            "pattern": "imei,mac_address,serial_number,guid,android_id,idfa,idfv",
+            "pattern_type": "trie",
+            "severity": "high",
+            "description": "设备唯一标识符"
+        },
+        {
+            "name": "user_behavior",
+            "pattern": "login,click,browse,purchase,download,search,watch",
+            "pattern_type": "trie",
+            "severity": "medium",
+            "description": "用户行为日志相关词"
+        },
+        {
+            "name": "user_profile",
+            "pattern": "nickname,avatar,signature,job,education,qualification,certification",
+            "pattern_type": "trie",
+            "severity": "medium",
+            "description": "用户个人资料信息"
         }
     ],
     "regex_patterns": [
@@ -66,18 +87,18 @@
             "description": "美国社会安全号"
         },
         {
-            "name": "bank_card",
-            "pattern": "\\b\\d{16,19}\\b",
-            "pattern_type": "regex",
-            "severity": "high",
-            "description": "银行卡号"
-        },
-        {
-            "name": "credit_card",
-            "pattern": "\\b(?:\\d{4}[\\s-]?){3}\\d{4}\\b",
+            "name": "passport",
+            "pattern": "\\b[A-Z]{1}[0-9]{7,8}\\b",
             "pattern_type": "regex",
             "severity": "critical",
-            "description": "信用卡号"
+            "description": "护照号码（通用）"
+        },
+        {
+            "name": "driver_license_us",
+            "pattern": "\\b[A-Z]{1}\\d{7}\\b|\\b\\d{8}\\b",
+            "pattern_type": "regex",
+            "severity": "high",
+            "description": "美国驾驶证（部分州通用）"
         },
         {
             "name": "ip_address",
@@ -94,25 +115,32 @@
             "description": "MAC地址"
         },
         {
-            "name": "date_pattern",
-            "pattern": "\\b\\d{4}-\\d{2}-\\d{2}\\b|\\b\\d{2}/\\d{2}/\\d{4}\\b",
+            "name": "credit_card",
+            "pattern": "\\b(?:\\d{4}[\\s-]?){3}\\d{4}\\b",
             "pattern_type": "regex",
-            "severity": "low",
-            "description": "日期格式"
+            "severity": "critical",
+            "description": "信用卡号"
         },
         {
-            "name": "url_pattern",
-            "pattern": "\\bhttps?://[^\\s<>\"{}|\\\\^`\\[\\]]+\\b",
+            "name": "bank_card",
+            "pattern": "\\b\\d{16,19}\\b",
             "pattern_type": "regex",
-            "severity": "low",
-            "description": "URL地址"
+            "severity": "high",
+            "description": "银行卡号"
         },
         {
-            "name": "file_path",
-            "pattern": "\\b[A-Za-z]:\\\\[^\\s<>\"{}|\\\\^`\\[\\]]+\\b|\\b/[^\\s<>\"{}|\\\\^`\\[\\]]+\\b",
+            "name": "genetic_sequence",
+            "pattern": "\\b[ACGT]{10,}\\b",
+            "pattern_type": "regex",
+            "severity": "critical",
+            "description": "基因序列（简化识别）"
+        },
+        {
+            "name": "rfid",
+            "pattern": "\\b[0-9A-Fa-f]{8,}\\b",
             "pattern_type": "regex",
             "severity": "medium",
-            "description": "文件路径"
+            "description": "RFID 标识码（简化匹配）"
         }
     ]
 }

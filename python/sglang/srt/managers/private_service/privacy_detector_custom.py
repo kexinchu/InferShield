@@ -4,7 +4,7 @@ Privacy Detector based on Trie Tree and Regex patterns
 """
 import re
 import time
-from typing import Dict, List, Set, Optional, Callable
+from typing import Dict, List, Optional, Callable
 from dataclasses import dataclass, field
 import json
 import logging
@@ -16,8 +16,8 @@ class PrivacyPattern:
     """隐私模式定义"""
     name: str
     pattern: str
-    pattern_type: str  # 'trie' or 'regex'
-    severity: str = 'high'  # 'low', 'medium', 'high', 'critical'
+    pattern_type: str
+    severity: str = 'high'
     description: str = ""
     custom_handler: Optional[Callable] = None
 
@@ -47,8 +47,7 @@ class PrivacyDetector:
     4. 支持自定义处理器
     5. 批量检测优化
     """
-    
-    def __init__(self, config_file: Optional[str] = None):
+    def __init__(self, config_file: Optional[str] = "./privacy_patterns_config.json"):
         self.trie_root = TrieNode()
         self.regex_patterns: List[PrivacyPattern] = []
         self.trie_patterns: List[PrivacyPattern] = []
@@ -61,28 +60,9 @@ class PrivacyDetector:
             'avg_processing_time': 0.0
         }
         
-        # 加载默认规则
-        self._load_default_patterns()
-        
         # 如果提供了配置文件，加载自定义规则
         if config_file:
             self.load_config(config_file)
-    
-    def _load_default_patterns(self):
-        """加载默认的隐私模式"""
-        default_patterns = [
-            # 邮箱模式
-            PrivacyPattern(
-                name="email",
-                pattern=r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
-                pattern_type="regex",
-                severity="high",
-                description="邮箱地址"
-            )
-        ]
-        
-        for pattern in default_patterns:
-            self.add_pattern(pattern)
     
     def add_pattern(self, pattern: PrivacyPattern):
         """添加隐私模式"""
@@ -110,7 +90,6 @@ class PrivacyDetector:
     
     def _add_regex_pattern(self, pattern: PrivacyPattern):
         """添加正则表达式模式"""
-        # 编译正则表达式以提高性能
         try:
             compiled_regex = re.compile(pattern.pattern, re.IGNORECASE)
             pattern.compiled_regex = compiled_regex
@@ -137,10 +116,8 @@ class PrivacyDetector:
     def detect_privacy(self, text: str) -> DetectionResult:
         """
         检测文本中的隐私信息
-        
         Args:
-            text: 待检测的文本
-            
+            text: 待检测的文本 
         Returns:
             DetectionResult: 检测结果
         """
@@ -284,7 +261,8 @@ class PrivacyDetector:
             trie_patterns = config.get('trie_patterns', [])
             for pattern_data in trie_patterns:
                 pattern = PrivacyPattern(**pattern_data)
-                self.add_pattern(pattern)
+                # 目前这里只有一些关键词，may导致误判
+                # self.add_pattern(pattern)
             
             # 加载正则模式
             regex_patterns = config.get('regex_patterns', [])
@@ -375,28 +353,29 @@ if __name__ == "__main__":
     detector.add_custom_handler('internal_documents', detect_internal_documents)
     
     # 测试文本
-    test_texts = [
-        "我的邮箱是 test@example.com",
-        "手机号是 13812345678",
-        "身份证号是 110101199001011234",
-        "这是一个内部文档",
-        "普通文本，没有敏感信息"
-    ]
+    from utils import load_jsonl_dataset
+    import numpy as np
+    texts, labels = load_jsonl_dataset("/workspace/Datasets/english_pii_43k.jsonl", sample_n=2000)
+    # 检查字段名
+    print(texts[0])
+    print(labels[1])
     
     # 批量检测
-    results = detector.batch_detect(test_texts)
+    batch_size = 16
+    preds = []
+    file_ = open("/workspace/results/pii-detection/res_file-custom.txt", "w")
+    for i in range(0, len(texts), batch_size):
+        test_texts = texts[i:i+batch_size]
+        results = detector.batch_detect(test_texts)
     
-    for i, (text, result) in enumerate(zip(test_texts, results)):
-        print(f"文本 {i+1}: {text}")
-        print(f"  隐私状态: {'私有' if result.is_private else '公开'}")
-        print(f"  置信度: {result.confidence:.2f}")
-        print(f"  处理时间: {result.processing_time:.4f}s")
-        if result.detected_patterns:
-            print(f"  检测到的模式:")
-            for pattern in result.detected_patterns:
-                print(f"    - {pattern['pattern_name']}: {pattern['matched_text']}")
-        print()
-    
+        for i, (text, result) in enumerate(zip(test_texts, results)):
+            file_.write(f"Text:{text}\tstatus:{result.is_private}\tscore:{result.confidence}\tlabel:{labels[i]}\n")
+            preds.append(1 if result.is_private else 0)
+
     # 显示统计信息
     stats = detector.get_stats()
-    print(f"统计信息: {stats}") 
+    preds = np.array(preds)
+    labels_np = np.array(labels)
+    acc = (preds == labels_np).mean()
+    file_.close()
+    print(f"Accuracy for Custom Detctor: {acc:.4f}")

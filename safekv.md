@@ -55,20 +55,6 @@
             - 当node确定private状态时，其子节点直接被标记为private
             - pipeline 在第一层的prefill执行之后就可以检测 (40GB -> 10GB; sglang的address逻辑)
 
-- 2. Cache management(public/private)
-    - 目标：动态管理private/public缓存，避免冗余存储，同时实现快速的prefix-prompt search，插入/删除
-    - 思路：
-        - 统一管理private/public prefix tree.
-        - private node因为只被同一个user使用，不会出现"分叉"；为实现快速search，"逻辑上合并sub-tree"
-        - 回收时，考虑到单个用户的request重启 + private reuse周期长的情况，在eviction时并不一次性删除全部子树，而是从leaf node逐级删除 (渐进式eviction)
-
-```shell
-        ...
-    |private-1 tag=merge ([cache-0, cache-1, cache-2])|
-    # |node-1 tag=invalid (private-1)|
-    # |node-2 tag=invalid (private-1)|
-```
-
 - 3. 针对检测失败的兜底与攻击识别: 
     - 目标：基于模型的private评估可能存在漏网之鱼，需要从机制上兜底隐私保护；在检测到可疑Attacker时，即使止损，阻断privacy泄露的可能
     - 难点：1，需要兼容多账号协同攻击的场景；2，基于频率的变化并不能有效反映攻击，因为request本身的访问pattern就是变化的
@@ -82,7 +68,32 @@
         - 通过直接判断 entropy 判断 少量找好直接攻击的情况； 通过hit_cur >> hit_pre + entropy_now > entropy_pre的方式来判断 多账号协同攻击
         - 根据pre的情况来判断是否需要将当前block升级成private
             - if u_pre 较大，说明当前block被多个user使用，认定为公共前缀，不做修改
-            - if u_pre 较小(=1)，说明当前block仅被单一user使用，认定可能包含隐私信息，降级为private
+            - if u_pre 较小(=1)，说明当前block仅被单一user使用，认定可能包含隐私信息，降级为private(evict) => KV
+        - 企业级用户 本身就是就是正常的。 
+            - 限制流量 -> IAM： ZTI，Cert，Attestation（验证client身份）
+            - id 校验
+        - 性能 > security
+            - To C : KV-Cache 降级
+            - To B 用户 ：发送alert；ToB 用户 ms 级别反馈。拿到反馈之后，决定是否降级
+            - To B - To C 用户： 限流的方式(KV-Cache 的稳定性)
+
+- 2. Cache management(public/private)
+    - 目标：动态管理private/public缓存，避免冗余存储，同时实现快速的prefix-prompt search，插入/删除
+    - 思路：
+        - 统一管理private/public prefix tree.
+        - private node因为只被同一个user使用，不会出现"分叉"；为实现快速search，"逻辑上合并sub-tree"
+        - 回收时，考虑到单个用户的request重启 + private reuse周期长的情况，在eviction时并不一次性删除全部子树，而是从leaf node逐级删除 (渐进式eviction)
+    - Note:
+        - 分级：system prompt, user prompt, user private , session prompt , session private
+        - diffetial privacy 怎么判定，在discussion 里面
+
+```shell
+        ...
+    |private-1 tag=merge ([cache-0, cache-1, cache-2])|
+    # |node-1 tag=invalid (private-1)|
+    # |node-2 tag=invalid (private-1)|
+```
+
 
 ## 修改建议 20250610
 - threat model 最后两段不要写，只写攻击者怎么攻击 + 攻击者是什么？

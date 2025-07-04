@@ -1,9 +1,8 @@
 """
-DistilBERT Privacy Detection Client
-用于向DistilBERT隐私检测服务发送请求的客户端
+PiiBERT Privacy Detection Client
+用于向PiiBERT隐私检测服务发送请求的客户端
 """
 import time
-import json
 import logging
 import threading
 import uuid
@@ -17,15 +16,15 @@ from sglang.srt.server_args import PortArgs, ServerArgs
 logger = logging.getLogger(__name__)
 
 @dataclass
-class DistilBERTRequest:
-    """DistilBERT检测请求"""
+class PiiBERTRequest:
+    """PiiBERT检测请求"""
     text: str
     request_id: str
     timestamp: float = field(default_factory=time.time)
 
 @dataclass
-class DistilBERTResponse:
-    """DistilBERT检测响应"""
+class PiiBERTResponse:
+    """PiiBERT检测响应"""
     request_id: str
     is_private: bool
     confidence: float
@@ -36,9 +35,9 @@ class DistilBERTResponse:
     status: str = "success"
     error: Optional[str] = None
 
-class DistilBERTClient:
+class PiiBERTClient:
     """
-    DistilBERT隐私检测客户端
+    PiiBERT隐私检测客户端
     
     特性:
     1. 异步请求处理
@@ -47,7 +46,6 @@ class DistilBERTClient:
     4. 连接重试机制
     5. 响应缓存
     """
-    
     def __init__(self, 
                  server_args: ServerArgs,
                  port_args: PortArgs,
@@ -94,16 +92,14 @@ class DistilBERTClient:
         self.processing_thread.start()
         self.sending_thread.start()
         
-        logger.info("DistilBERT Client started")
+        logger.info("PiiBERT Client started")
     
     def detect_privacy(self, text: str, callback: Optional[Callable] = None) -> str:
         """
         检测文本隐私信息（异步）
-        
         Args:
             text: 待检测的文本
-            callback: 回调函数，接收DistilBERTResponse参数
-            
+            callback: 回调函数，接收PiiBERTResponse参数
         Returns:
             str: 请求ID
         """
@@ -120,7 +116,7 @@ class DistilBERTClient:
         request_id = str(uuid.uuid4())
         
         # 创建请求
-        request = DistilBERTRequest(
+        request = PiiBERTRequest(
             text=text,
             request_id=request_id
         )
@@ -133,7 +129,7 @@ class DistilBERTClient:
         
         return request_id
     
-    def detect_privacy_sync(self, text: str, timeout: Optional[float] = None) -> DistilBERTResponse:
+    def detect_privacy_sync(self, text: str, timeout: Optional[float] = None) -> PiiBERTResponse:
         """
         检测文本隐私信息（同步）
         
@@ -142,7 +138,7 @@ class DistilBERTClient:
             timeout: 超时时间（秒）
             
         Returns:
-            DistilBERTResponse: 检测结果
+            PiiBERTResponse: 检测结果
         """
         if timeout is None:
             timeout = self.timeout
@@ -165,7 +161,7 @@ class DistilBERTClient:
                 if request_id in self.pending_requests:
                     del self.pending_requests[request_id]
             
-            return DistilBERTResponse(
+            return PiiBERTResponse(
                 request_id=request_id,
                 is_private=False,
                 confidence=0.0,
@@ -183,7 +179,7 @@ class DistilBERTClient:
         
         Args:
             texts: 待检测的文本列表
-            callback: 批量回调函数，接收List[DistilBERTResponse]参数
+            callback: 批量回调函数，接收List[PiiBERTResponse]参数
             
         Returns:
             List[str]: 请求ID列表
@@ -237,35 +233,30 @@ class DistilBERTClient:
     def _process_sending(self):
         """处理发送请求的线程"""
         while self.running:
-            try:
-                # 收集批量请求
-                batch_requests = []
+            # 收集批量请求
+            batch_requests = []
+            
+            with self.lock:
+                while len(self.request_queue) > 0 and len(batch_requests) < self.batch_size:
+                    batch_requests.append(self.request_queue.pop(0))
+            
+            if batch_requests:
+                # 发送批量请求
+                message = {
+                    'batch': [
+                        {
+                            'request_id': req.request_id,
+                            'text': req.text,
+                            'timestamp': req.timestamp
+                        }
+                        for req in batch_requests
+                    ]
+                }
                 
-                with self.lock:
-                    while len(self.request_queue) > 0 and len(batch_requests) < self.batch_size:
-                        batch_requests.append(self.request_queue.pop(0))
-                
-                if batch_requests:
-                    # 发送批量请求
-                    message = {
-                        'batch': [
-                            {
-                                'request_id': req.request_id,
-                                'text': req.text,
-                                'timestamp': req.timestamp
-                            }
-                            for req in batch_requests
-                        ]
-                    }
-                    
-                    self.send_socket.send_json(message)
-                    logger.debug(f"Sent batch of {len(batch_requests)} requests")
-                
-                time.sleep(0.01)  # 短暂休眠
-                
-            except Exception as e:
-                logger.error(f"Error in sending thread: {e}")
-                time.sleep(1)
+                self.send_socket.send_json(message)
+                logger.debug(f"Sent batch of {len(batch_requests)} requests")
+            
+            time.sleep(0.01)  # 短暂休眠
     
     def _process_responses(self):
         """处理响应的线程"""
@@ -295,7 +286,7 @@ class DistilBERTClient:
             if status == 'success':
                 result_data = response_data.get('result', {})
                 
-                response = DistilBERTResponse(
+                response = PiiBERTResponse(
                     request_id=request_id,
                     is_private=result_data.get('is_private', False),
                     confidence=result_data.get('confidence', 0.0),
@@ -306,7 +297,7 @@ class DistilBERTClient:
                     status=status
                 )
             else:
-                response = DistilBERTResponse(
+                response = PiiBERTResponse(
                     request_id=request_id,
                     is_private=False,
                     confidence=0.0,
@@ -333,7 +324,7 @@ class DistilBERTClient:
         except Exception as e:
             logger.error(f"Error handling response: {e}")
     
-    def _cache_response(self, response: DistilBERTResponse):
+    def _cache_response(self, response: PiiBERTResponse):
         """缓存响应"""
         if response.status == 'success':
             # 这里需要从原始请求中获取文本，简化处理
@@ -359,14 +350,14 @@ class DistilBERTClient:
         """关闭客户端"""
         self.running = False
         self.context.term()
-        logger.info("DistilBERT Client stopped")
+        logger.info("PiiBERT Client stopped")
 
 # 全局客户端实例
 _global_client = None
 
 def get_distillbert_client(server_args: Optional[ServerArgs] = None,
-                          port_args: Optional[PortArgs] = None) -> DistilBERTClient:
-    """获取全局DistilBERT客户端实例"""
+                          port_args: Optional[PortArgs] = None) -> PiiBERTClient:
+    """获取全局PiiBERT客户端实例"""
     global _global_client
     
     if _global_client is None:
@@ -375,20 +366,20 @@ def get_distillbert_client(server_args: Optional[ServerArgs] = None,
         if port_args is None:
             port_args = PortArgs()
         
-        _global_client = DistilBERTClient(server_args, port_args)
+        _global_client = PiiBERTClient(server_args, port_args)
     
     return _global_client
 
-def detect_privacy_with_distillbert(text: str, timeout: Optional[float] = None) -> DistilBERTResponse:
+def detect_privacy_with_distillbert(text: str, timeout: Optional[float] = None) -> PiiBERTResponse:
     """
-    使用DistilBERT检测隐私信息的便捷函数
+    使用PiiBERT检测隐私信息的便捷函数
     
     Args:
         text: 待检测的文本
         timeout: 超时时间（秒）
         
     Returns:
-        DistilBERTResponse: 检测结果
+        PiiBERTResponse: 检测结果
     """
     client = get_distillbert_client()
     return client.detect_privacy_sync(text, timeout)
@@ -396,7 +387,7 @@ def detect_privacy_with_distillbert(text: str, timeout: Optional[float] = None) 
 def batch_detect_privacy_with_distillbert(texts: List[str], 
                                         callback: Optional[Callable] = None) -> List[str]:
     """
-    批量使用DistilBERT检测隐私信息的便捷函数
+    批量使用PiiBERT检测隐私信息的便捷函数
     
     Args:
         texts: 待检测的文本列表
@@ -413,7 +404,7 @@ if __name__ == "__main__":
     # 创建客户端
     server_args = ServerArgs()
     port_args = PortArgs()
-    client = DistilBERTClient(server_args, port_args)
+    client = PiiBERTClient(server_args, port_args)
     
     # 测试文本
     test_texts = [

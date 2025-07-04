@@ -1,0 +1,14 @@
+aiohttp>=3.8.0
+numpy>=1.21.0
+asyncio
+dataclasses
+pathlib
+argparse
+json
+logging
+statistics
+random
+time
+typing
+collections
+concurrent.futures 
