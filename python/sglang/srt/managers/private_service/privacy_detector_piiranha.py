@@ -17,6 +17,7 @@ from torch.nn.functional import softmax
 
 from sglang.srt.utils import get_zmq_socket
 from sglang.srt.server_args import PortArgs, ServerArgs
+from utils import make_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ class PiiPrivacyDetector:
     """
     def __init__(self, 
                  pii_model_name: str = "/workspace/Models/piiranha-v1",
-                 gene_model_name: str = "/workspace/Models/Qwen3-0.6B",
+                 gene_model_name: str = "/workspace/Models/Llama-3.2-1B",
                  max_length: int = 256,
                  confidence_threshold: float = 0.7,
                  device: Optional[str] = None):
@@ -103,6 +104,7 @@ class PiiPrivacyDetector:
         # 加载通用模型
         self.gene_tokenizer = AutoTokenizer.from_pretrained(self.gene_model_name, trust_remote_code=True)
         self.gene_model = AutoModelForCausalLM.from_pretrained(self.gene_model_name, trust_remote_code=True)
+        self.gene_tokenizer.pad_token = self.gene_tokenizer.eos_token
 
         # 移动到指定设备
         self.pii_model.to(self.device)
@@ -137,43 +139,10 @@ class PiiPrivacyDetector:
         # mask[i] = True 表示该 token 是敏感标签
         is_private_mask = ~torch.isin(preds, self.ignore_label_ids)
         return is_private_mask, probs
-    
-    # 构造 prompt
-    def make_prompt(self, user_input):
-        return f"""You are a privacy classification assistant.
-
-Your task is to determine if a given sentence contains any Personally Privacy Information.
-
-Privacy Info includes: Real names (full or partial), Phone numbers, Email addresses, National ID, passport, social security numbers, Home or mailing addresses, Account numbers, License plates, IP addresses, GPS locations, Dates of birth or death, etc.
-
-## Instructions:
-1. Carefully read the input text.
-2. Decide whether it includes any privacy infomation.
-3. Output a number between 0 and 1 representing how confident you are that the text contains any privacy info.
-
-## Examples:
-Input: "Contact me at john.doe@example.com or 555-123-4567."
-Answer: 0.97
-
-Input: "Her birthday is January 14, 1993."
-Answer: 0.93
-
-Input: "The capital of France is Paris."
-Answer: 0.47
-
-Input: "This is a list of animals: dog, cat, lion."
-Answer: 0.02
-
-Input: "James recently moved to 456 Oak Avenue."
-Answer: 0.96
-
-## Now evaluate this input:
-Input: "{user_input}"
-Answer:"""
 
     def detect_privacy_gene(self, texts):
         """使用 general LLM model detect privacy info"""
-        prompts = [self.make_prompt(text) for text in texts]
+        prompts = [make_prompt(text) for text in texts]
 
         # 批处理编码
         inputs = self.gene_tokenizer(prompts, return_tensors="pt", padding=True, padding_side='left', truncation=True).to(self.gene_model.device)
@@ -298,7 +267,7 @@ class PiiPrivacyService:
                  server_args: ServerArgs,
                  port_args: PortArgs,
                  pii_model_name: str = "/workspace/Models/piiranha-v1",
-                 gene_model_name: str = "/workspace/Models/Qwen3-0.6B",
+                 gene_model_name: str = "/workspace/Models/Llama-3.2-1B",
                  max_length: int = 256,
                  confidence_threshold: float = 0.7,
                  device: Optional[str] = None):
@@ -412,7 +381,7 @@ def main():
                        help="model name")
     parser.add_argument("--pii_model_name", default="/workspace/Models/piiranha-v1", 
                        help="Pii model name")
-    parser.add_argument("--gene_model_name", default="/workspace/Models/Qwen3-0.6B", 
+    parser.add_argument("--gene_model_name", default="/workspace/Models/Llama-3.2-1B", 
                        help="General LLM model name")
     parser.add_argument("--max_length", type=int, default=128,
                        help="Maximum sequence length")

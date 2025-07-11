@@ -355,7 +355,7 @@ if __name__ == "__main__":
     # 测试文本
     from utils import load_jsonl_dataset
     import numpy as np
-    texts, labels = load_jsonl_dataset("/workspace/Datasets/english_pii_43k.jsonl", sample_n=2000)
+    texts, labels = load_jsonl_dataset("/workspace/Datasets/italian_pii_50k.jsonl", sample_n=2000)
     # 检查字段名
     print(texts[0])
     print(labels[1])

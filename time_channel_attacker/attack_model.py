@@ -25,11 +25,8 @@ import statistics
 import json
 import asyncio
 import aiohttp
-from typing import List, Dict, Tuple, Optional, Set
+from typing import List, Dict, Tuple
 from dataclasses import dataclass, field
-from collections import defaultdict
-import numpy as np
-from concurrent.futures import ThreadPoolExecutor
 import logging
 
 # Configure logging

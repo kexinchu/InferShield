@@ -20,8 +20,6 @@ The radix tree data structure for managing the KV cache.
 """
 
 import heapq
-import time
-from collections import defaultdict
 from functools import partial
 from typing import TYPE_CHECKING, List, Optional, Tuple, Dict
 
@@ -44,60 +42,10 @@ if TYPE_CHECKING:
 from sglang import get_epoch
 from sglang.srt.server_args import ServerArgs, PortArgs
 from sglang.srt.managers.private_service.private_client import PrivateJudgeClient
+from sglang.srt.mem_cache.tree_node import TreeNode
 
 THRESHOLD = 10 
 # add by kexinchu --- end
-
-class TreeNode:
-
-    counter = 0
-
-    def __init__(self, id: Optional[int] = None):
-        self.children = defaultdict(TreeNode)
-        self.parent = None
-        self.key = None
-        self.value = None
-        self.lock_ref = 0
-        # self.last_access_time = time.monotonic()
-
-        self.hit_count = 0 # already have hit_count
-        # indicating the node is loading KV cache from host
-        self.loading = False
-        # store the host indices of KV cache
-        self.host_value = None
-
-        self.id = TreeNode.counter if id is None else id
-        TreeNode.counter += 1
-
-        # add by kexinchu --- start
-        self.private = True  # default is private node
-        self.need_check_privacy = True
-        self.owner_id = None
-        self.u_cnt_l = set() # the hit user_id list
-        self.hit_pre = 0
-        self.u_cnt_pre = 0 # 上一个time_window的hit_user_count
-        self.epoch = get_epoch()
-        self.after_merged = False # 是否被合并过 (合并)
-        self.merged_key = []
-        self.merged_value = []
-        self.is_sub_root = False # 是否是隐私节点合并后的根节点
-        # add by kexinchu --- end
-
-    @property
-    def evicted(self):
-        return self.value is None
-
-    @property
-    def backuped(self):
-        return self.host_value is not None
-
-    # add by kexinchu --- start
-    def __lt__(self, other: "TreeNode"):
-        # 改为使用epoch
-        # return self.last_access_time < other.last_access_time
-        return self.epoch < other.epoch
-    # add by kexinchu --- end
-
 
 def _key_match_page_size1(key0: List, key1: List):
     i = 0
@@ -170,7 +118,7 @@ class RadixCache(BasePrefixCache):
         self.protected_size_ = 0
         self._record_all_cleared_event()
 
-    def match_prefix(self, key: List[int], user_id: Optional[int] = None, **kwargs) -> Tuple[torch.Tensor, int]:
+    def match_prefix(self, key: List[int], user_id: Optional[str] = None, **kwargs) -> Tuple[torch.Tensor, int]:
         """Find the matching prefix from the radix tree.
         Args:
             key: A list of token IDs to find a matching prefix.
@@ -202,13 +150,13 @@ class RadixCache(BasePrefixCache):
             value = torch.empty((0,), dtype=torch.int64, device=self.device)
         return value, last_node
 
-    def insert(self, key: List, value=None, user_id: Optional[int] = None):
+    def insert(self, key: List, value=None, prompt="", user_id: Optional[str] = None):
         if self.disable:
             return 0
 
         if value is None:
             value = [x for x in key]
-        return self._insert_helper(self.root_node, key, value, user_id = user_id)
+        return self._insert_helper(self.root_node, key, value, prompt, user_id = user_id)
 
     def cache_finished_req(self, req: Req):
         """Cache request when it finishes."""
@@ -235,7 +183,10 @@ class RadixCache(BasePrefixCache):
 
         # Radix Cache takes one ref in memory pool
         new_prefix_len = self.insert(
-            token_ids[:page_aligned_len], page_aligned_kv_indices, user_id=req.user_id
+            token_ids[:page_aligned_len], 
+            page_aligned_kv_indices, 
+            req.origin_input_text,
+            user_id=req.user_id
         )
         self.token_to_kv_pool_allocator.free(
             kv_indices[len(req.prefix_indices) : new_prefix_len]
@@ -379,7 +330,7 @@ class RadixCache(BasePrefixCache):
 
     ##### Internal Helper Functions #####
 
-    def _match_prefix_helper(self, node: TreeNode, key: List, user_id: Optional[int] = None):
+    def _match_prefix_helper(self, node: TreeNode, key: List, user_id: Optional[str] = None):
         # node.last_access_time = time.monotonic()
         node.epoch = get_epoch() # add by kexinchu
         child_key = self.get_child_key_fn(key)
@@ -502,7 +453,7 @@ class RadixCache(BasePrefixCache):
             current = next(iter(current.children.values()))
         return True
 
-    def _try_merge_subtree_when_insert(self, node: TreeNode, key: List, value: List, user_id: Optional[int] = None) -> int:
+    def _try_merge_subtree_when_insert(self, node: TreeNode, key: List, value: List, user_id: Optional[str] = None) -> int:
         """Try to merge private subtree"""
         # node.last_access_time = time.monotonic()
         node.epoch = get_epoch()
@@ -544,7 +495,7 @@ class RadixCache(BasePrefixCache):
         return total_prefix_length
     # add by kexinchu --- end
 
-    def _insert_helper(self, node: TreeNode, key: List, value, user_id: Optional[int] = None):
+    def _insert_helper(self, node: TreeNode, key: List, value, prompt: str, user_id: Optional[str] = None):
         # node.last_access_time = time.monotonic()
         node.epoch = get_epoch() # add by kexinchu
         if len(key) == 0:
@@ -584,9 +535,11 @@ class RadixCache(BasePrefixCache):
             new_node.key = key
             new_node.value = value
             # add by kexinchu --- start
+            new_node.prompt = prompt
             self.private_judge_client.update_privacy(
-                node_id=new_node,
-                prompt = key,
+                node = new_node,
+                context = prompt,
+                prompt = prompt,
             )
             new_node.owner_id = user_id
             # add by kexinchu --- end

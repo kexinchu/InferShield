@@ -61,9 +61,6 @@
     - 思路：基于时间窗口的Monitor + 分布熵判断
         - 即使使用多账号协同攻击，也会造成单个账号的访问频率增加
         - 对于每一个KV-Cache block，记录：hit_cur, u_cnt, hit_pre, u_pre
-        - 60s
-        - 100次 hit  10  0.1；
-        -            50  0.5
         - 每个时间窗口计算：entropy = usr_cnt/hit_cur, entropy低/高表示少数账号占多次访问，高entropy表示访问比较分散
         - 通过直接判断 entropy 判断 少量找好直接攻击的情况； 通过hit_cur >> hit_pre + entropy_now > entropy_pre的方式来判断 多账号协同攻击
         - 根据pre的情况来判断是否需要将当前block升级成private

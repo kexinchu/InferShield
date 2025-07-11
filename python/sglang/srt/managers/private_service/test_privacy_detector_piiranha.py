@@ -1,7 +1,7 @@
 import threading
 import time
 from privacy_detector_piiranha import PiiPrivacyService
-from pii_bert_client import PiiBERTClient
+from privacy_detector_piiranha_client import PiiBERTClient
 from utils import load_jsonl_dataset
 import sys
 import os
@@ -23,7 +23,7 @@ def start_server(port_args):
         server_args=server_args,
         port_args=port_args,
         pii_model_name="/workspace/Models/piiranha-v1",
-        gene_model_name="/workspace/Models/Qwen3-0.6B",
+        gene_model_name="/workspace/Models/Llama-3.2-1B",
         confidence_threshold=0.7,
         device=None
     )
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     time.sleep(5)  # Wait for server to start
 
     # Load test data
-    texts, labels = load_jsonl_dataset("/workspace/Datasets/english_pii_43k.jsonl", sample_n=2000)
+    texts, labels = load_jsonl_dataset("/workspace/Datasets/italian_pii_50k.jsonl", sample_n=2000)
     # 检查字段名
     print(texts[0])
     print(labels[1])
@@ -55,7 +55,6 @@ if __name__ == "__main__":
     results = []
     request_ids = []
     preds = []
-    file_ = open("/workspace/results/pii-detection/res_file-pii.txt", "w")
     for text in texts:
         request_id = client.detect_privacy(text)
         request_ids.append(request_id)
@@ -63,8 +62,9 @@ if __name__ == "__main__":
     print(len(request_ids))
     file_ = open("/workspace/results/pii-detection/res_file-pii.txt", "w")
     for i, request_id in enumerate(request_ids):
+        # 获取结果
         res = client.detect_privacy_sync(request_id)
-        file_.write(f"Text:{text}\tstatus:{res.is_private}\tscore:{res.confidence}\tlabel:{labels[i]}\n")
+        file_.write(f"Text:{texts[i]}\tstatus:{res.is_private}\tscore:{res.confidence}\tlabel:{labels[i]}\tmodel_name:{res.model_name}\n")
         preds.append(1 if res.is_private else 0)
         client.free_cache(request_id)
     file_.close()

@@ -2,17 +2,26 @@
 private client
 add by kexinchu
 """
+from dataclasses import dataclass
 import time
 import zmq
 import queue
 import threading
-from typing import Dict, List
+from typing import List
 from dataclasses import dataclass
 
-from sglang.srt.mem_cache.radix_cache import TreeNode
 from sglang.srt.server_args import PortArgs, ServerArgs
-from sglang.srt.managers.private_service.private_service import PrivateNodeTask
+from sglang.srt.mem_cache.tree_node import TreeNode
 from sglang.srt.utils import get_zmq_socket
+
+@dataclass
+class PrivateNodeTask:
+    node: TreeNode
+    task_type: str  # 'check_private', 'update_private', 'cleanup_private'
+    context: str    # 上下文信息
+    prompt: str     # 提示词
+    request_id: str
+    timestamp: float = time.time()
 
 class PrivateJudgeClient:
     def __init__(self, 
@@ -33,6 +42,9 @@ class PrivateJudgeClient:
         self.recv_from_server = get_zmq_socket(
             self.context, zmq.PULL, port_args.private_judge_to_client, False
         )
+
+        # Flag to control thread execution
+        self.running = True
         
         # Initialize task queue and processing thread
         self.task_queue = queue.Queue()
@@ -41,11 +53,8 @@ class PrivateJudgeClient:
             daemon=True
         )
         self.processing_thread.start()
-        
-        # Flag to control thread execution
-        self.running = True
     
-    def update_privacy(self, node: TreeNode, context: str, prompt: str) -> None:
+    def update_privacy(self, node, context: str, prompt: str) -> None:
         """Update node privacy status asynchronously"""
         # check the parents's node: privacy status
         if node.parent is not None and \
@@ -71,29 +80,29 @@ class PrivateJudgeClient:
         last_batch_time = time.time()
         
         while self.running:
-            try:
+            # try:
                 # Try to get a task with timeout
-                try:
-                    task = self.task_queue.get(timeout=self.batch_timeout)
-                    current_batch.append(task)
-                except queue.Empty:
-                    time.sleep(10) # wait for new task
-                    continue
+            try:
+                task = self.task_queue.get(timeout=self.batch_timeout)
+                current_batch.append(task)
+            except queue.Empty:
+                time.sleep(10) # wait for new task
+                continue
                 
-                current_time = time.time()
-                # Process batch if it's full or timeout reached
-                if (len(current_batch) >= self.batch_size or 
-                    (current_batch and current_time - last_batch_time \
-                        >= self.batch_timeout)):
-                    self._send_batch_tasks(current_batch)
-                    current_batch = []
-                    last_batch_time = current_time
-                    
-            except Exception as e:
-                print(f"Error processing tasks: {e}")
-                # Clear batch on error
+            current_time = time.time()
+            # Process batch if it's full or timeout reached
+            if (len(current_batch) >= self.batch_size or 
+                (current_batch and current_time - last_batch_time \
+                    >= self.batch_timeout)):
+                self._send_batch_tasks(current_batch)
                 current_batch = []
-                last_batch_time = time.time()
+                last_batch_time = current_time
+                    
+            # except Exception as e:
+            #     print(f"Error processing tasks: {e}")
+            #     # Clear batch on error
+            #     current_batch = []
+            #     last_batch_time = time.time()
     
     def _send_batch_tasks(self, tasks: List[PrivateNodeTask]) -> None:
         """Send a batch of tasks to the server"""
@@ -143,14 +152,3 @@ class PrivateJudgeClient:
             self.recv_from_server.close()
         if hasattr(self, 'context'):
             self.context.term()
-
-if __name__ == "__main__":
-    # Example usage
-    client = PrivateJudgeClient()
-    try:    
-        # Update privacy
-        client.update_privacy(node=TreeNode(), context="hello world!")
-        time.sleep(1)  # Wait for processing
-        
-    finally:
-        client.close() 

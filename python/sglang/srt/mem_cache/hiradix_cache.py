@@ -15,7 +15,8 @@ from sglang.srt.mem_cache.memory_pool import (
     ReqToTokenPool,
     TokenToKVPoolAllocator,
 )
-from sglang.srt.mem_cache.radix_cache import RadixCache, TreeNode
+from sglang.srt.mem_cache.radix_cache import RadixCache
+from sglang.srt.mem_cache.tree_node import TreeNode
 # add by kexinchu --- start
 from sglang import get_epoch 
 from sglang.srt.server_args import ServerArgs, PortArgs 
@@ -321,7 +322,7 @@ class HiRadixCache(RadixCache):
     def ready_to_load_cache(self):
         self.load_cache_event.set()
 
-    def match_prefix(self, key: List[int], include_evicted=False, user_id: Optional[int] = None, **kwargs):
+    def match_prefix(self, key: List[int], include_evicted=False, user_id: Optional[str] = None, **kwargs):
         empty_value = torch.empty((0,), dtype=torch.int64, device=self.device)
         if self.disable or len(key) == 0:
             if include_evicted:
@@ -348,7 +349,7 @@ class HiRadixCache(RadixCache):
         else:
             return value, last_node
 
-    def _match_prefix_helper(self, node: TreeNode, key: List, user_id: Optional[int] = None):
+    def _match_prefix_helper(self, node: TreeNode, key: List, user_id: Optional[str] = None):
         node.last_access_time = time.monotonic()
         node.epoch = get_epoch() # add by kexinchu
         child_key = self.get_child_key_fn(key)
@@ -422,7 +423,7 @@ class HiRadixCache(RadixCache):
         new_node.parent.children[self.get_child_key_fn(key)] = new_node
         return new_node
 
-    def _insert_helper(self, node: TreeNode, key: List, value, user_id: Optional[int] = None):
+    def _insert_helper(self, node: TreeNode, key: List, value, user_id: Optional[str] = None):
         node.last_access_time = time.monotonic()
         node.epoch = get_epoch() # add by kexinchu
         if len(key) == 0:

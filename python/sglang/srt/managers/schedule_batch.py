@@ -441,7 +441,6 @@ class Req:
         bootstrap_host: Optional[str] = None,
         bootstrap_port: Optional[int] = None,
         bootstrap_room: Optional[int] = None,
-        user_id: Optional[int] = None, # add by kexinchu
     ):
         # Input and output info
         self.rid = rid
@@ -608,7 +607,7 @@ class Req:
         # We use `tmp_end_idx` to store the end index of the kv cache to send.
         self.tmp_end_idx: int = -1
         self.metadata_buffer_index: int = -1
-        self.user_id: int = user_id # add by kexinchu
+        self.user_id: str = sampling_params.user_id # add by kexinchu
         
         # For privacy detection requests
         self.is_privacy_detection: bool = False

@@ -194,6 +194,7 @@ class Scheduler(
     ):
         # Parse args
         self.server_args = server_args
+        self.port_args = port_args
         self.tp_rank = tp_rank
         self.pp_rank = pp_rank
         self.tp_size = server_args.tp_size
@@ -393,6 +394,8 @@ class Scheduler(
             self.schedule_policy,
             self.tree_cache,
             self.enable_hierarchical_cache,
+            self.server_args,
+            self.port_args,
         )
         assert (
             server_args.schedule_conservativeness >= 0
@@ -985,7 +988,6 @@ class Scheduler(
                 bootstrap_host=recv_req.bootstrap_host,
                 bootstrap_port=recv_req.bootstrap_port,
                 bootstrap_room=recv_req.bootstrap_room,
-                user_id = recv_req.sampling_params.user_id, # add by kexinchu
             )
             req.tokenizer = self.tokenizer
 

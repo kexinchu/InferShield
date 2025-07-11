@@ -5,12 +5,10 @@ add by kexinchu
 """
 import time
 import zmq
-import json
 import threading
-from typing import Dict, List, Optional
-from dataclasses import dataclass
+from typing import Dict
 
-from sglang.srt.mem_cache.radix_cache import TreeNode
+from sglang.srt.mem_cache.tree_node import TreeNode
 from sglang.srt.server_args import PortArgs, ServerArgs
 from sglang.srt.utils import get_zmq_socket
 from sglang.srt.managers.io_struct import TokenizedGenerateReqInput, SamplingParams
@@ -18,25 +16,11 @@ from sglang.srt.managers.io_struct import TokenizedGenerateReqInput, SamplingPar
 # 导入隐私检测器
 from .privacy_detector_custom import PrivacyDetector
 # 导入PiiBERT客户端
-from .pii_bert_client import PiiBERTClient
+from .privacy_detector_piiranha_client import PiiBERTClient
 
 BATCH_SIZE = 16
 LOW_QUALITY_THRESHOLD = 0.3
 HIGH_QUALITY_THRESHOLD = 0.7
-
-@dataclass
-class PrivateNodeTask:
-    node: TreeNode
-    task_type: str  # 'check_private', 'update_private', 'cleanup_private'
-    context: str    # 上下文信息
-    prompt: str     # 提示词
-    request_id: str
-    timestamp: float = time.time()
-
-# @dataclass
-# class BatchTasks:
-#     tasks: List[PrivateNodeTask]
-#     timestamp: float
 
 class PrivateJudgeService:
     def __init__(self, 
@@ -204,7 +188,7 @@ class PrivateJudgeService:
                         'pattern_type': 'ml_model',
                         'severity': 'high' if res.confidence > 0.9 else 'medium',
                     },
-                    'node_id': task_data.node.node_id,
+                    'node_id': task_data["node_id"],
                     'detection_level': 'second_level',
                     'model_name': res.model_name,
                 })
