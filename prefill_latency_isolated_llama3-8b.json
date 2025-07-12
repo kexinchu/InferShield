@@ -1,8 +1,0 @@
-{
-  "model": "llama3-8b",
-  "total_requests": 1952,
-  "total_latency": 199.6573429107666,
-  "average_latency": 0.10228347485182715,
-  "total_mem_used": 22308,
-  "total_mem_free": 74772
-}

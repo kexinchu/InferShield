@@ -1,10 +1,8 @@
 import sys
-from python.sglang import Runtime, set_default_backend
-import multiprocessing as mp
+import os
+import subprocess
 
 if __name__ == "__main__":
-    mp.set_start_method("spawn", force=True)
-
     model_name = "llama3-8b"
     if len(sys.argv) > 1:
         model_name = sys.argv[1]
@@ -15,18 +13,33 @@ if __name__ == "__main__":
     }
 
     print(f"Loading model: {model_name}")
-    runtime = Runtime(
-        model_path=local_path[model_name],
-        max_running_requests=32,
-        max_total_tokens=40960,
-        dtype="bfloat16",
-        trust_remote_code=True,
-        attention_backend="torch_native",
-        sampling_backend="pytorch",
-        disable_cuda_graph=True,
-        disable_cuda_graph_padding=True,
-        tp_size=2,
-    )
-    set_default_backend(runtime)
+    
+    # Use the existing launch_server module
+    cmd = [
+        sys.executable, "python/sglang/launch_server.py",
+        "--model-path", local_path[model_name],
+        "--host", "127.0.0.1",
+        "--port", "8080",
+        "--max-running-requests", "32",
+        "--max-total-tokens", "40960",
+        "--dtype", "bfloat16",
+        "--trust-remote-code",
+        "--attention-backend", "torch_native",
+        "--sampling-backend", "pytorch",
+        "--disable-cuda-graph",
+        "--disable-cuda-graph-padding",
+        "--tp-size", "2"
+    ]
+    
     print("Starting HTTP server on port 8080...")
-    runtime.run_http_server(port=8080)
+    print(f"Command: {' '.join(cmd)}")
+    
+    # Add the python directory to the path
+    env = os.environ.copy()
+    python_path = os.path.join(os.path.dirname(__file__), 'python')
+    if 'PYTHONPATH' in env:
+        env['PYTHONPATH'] = python_path + ':' + env['PYTHONPATH']
+    else:
+        env['PYTHONPATH'] = python_path
+    
+    subprocess.run(cmd, env=env)

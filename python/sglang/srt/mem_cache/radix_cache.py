@@ -378,7 +378,7 @@ class RadixCache(BasePrefixCache):
             else:
                 child.u_cnt_l.add(user_id)
                 child.hit_count += 1
-                if child.hit_count > child.hit_pre * THRESHOLD:
+                if child.hit_pre != 0 and child.hit_count > child.hit_pre * THRESHOLD:
                     self._free_with_entropy(child)
             child.epoch = get_epoch()
             # add by kexinchu --- end

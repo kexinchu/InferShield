@@ -14,8 +14,8 @@ SERVER_URL = "http://127.0.0.1:8080/v1/chat/completions"
 headers = {"Content-Type": "application/json"}
 
 # === 参数 ===
-NUM_THREADS = 5          # 线程数
-QPS_PER_THREAD = 2       # 每个线程的QPS
+NUM_THREADS = 1          # 线程数
+QPS_PER_THREAD = 1       # 每个线程的QPS
 ISOLATION_MODE = True
 
 # === 每个线程对应一个Queue和Session ID ===
@@ -116,7 +116,7 @@ if __name__ == "__main__":
         tokenizer, 
         max_embedding_positions=4090
     )
-    sampled_requests = user_requests[:2000]
+    sampled_requests = user_requests[:2]
     random.shuffle(sampled_requests)
     # Take first 1000 requests
     prompts = []

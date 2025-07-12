@@ -4,6 +4,7 @@ import re
 import numpy as np
 import os
 import time
+from load_requests import load_jsonl_dataset
 
 latencies = []
 
@@ -138,25 +139,38 @@ def detect_privacy_llm_batch(input_texts, tokenizer, model, batch_size=16):
     return scores
 
 # 保持原有的单样本处理函数作为备用
-def detect_privacy_llm(input_text, tokenizer, model):
-    prompt = make_prompt_llama(input_text)
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-    with torch.no_grad():
-        start = time.perf_counter()
-        outputs = model.generate(**inputs, max_new_tokens=10)
-        latencies.append((time.perf_counter() - start) * 1000)
-    result = tokenizer.decode(outputs[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True).strip()
-    # 尝试解析成 float
-    try:
-        score = [float(num) for num in re.findall(r'[-+]?\d*\.\d+|\d+', result)]
-        score = max(0.0, min(1.0, score[0]))  # 限制范围
-    except:
-        score = 0.5
-    return score
+def detect_privacy_llm(input_texts, tokenizer, model):    
+    scores = []
+    for i in range(0, len(input_texts)):
+        text = input_texts[i]
+        prompts = [make_prompt_llama(text)]
+        
+        # 批处理编码
+        inputs = tokenizer(prompts, return_tensors="pt", padding=True, padding_side='left', truncation=True).to(model.device)
+        with torch.no_grad():
+            start = time.perf_counter()
+            outputs = model.generate(**inputs, max_new_tokens=10)
+            latencies.append((time.perf_counter() - start) * 1000)
+        
+        # 解码每个样本的输出
+        for j, output in enumerate(outputs):
+            # 获取新生成的token
+            input_length = inputs["input_ids"].shape[1] if len(inputs["input_ids"].shape) > 1 else inputs["input_ids"].shape[0]
+            result = tokenizer.decode(output[input_length:], skip_special_tokens=True).strip()
+            
+            # 尝试解析成 float
+            try:
+                score = [float(num) for num in re.findall(r'[-+]?\d*\.\d+|\d+', result)]
+                score = max(0.0, min(1.0, score[0])) if score else 0.5
+            except:
+                score = 0.5
+            scores.append(score)
+    
+    return scores
 
 if __name__ == "__main__":
     SAMPLE_N = 2000
-    texts, labels = load_jsonl_dataset("./Datasets/english_pii_43k.jsonl", sample_n=SAMPLE_N)
+    texts, labels = load_jsonl_dataset("../Datasets/english_pii_43k.jsonl", sample_n=SAMPLE_N)
     # 检查字段名
     print(texts[0])
     print(labels[1])
@@ -165,12 +179,12 @@ if __name__ == "__main__":
     os.makedirs("./results/pii-detection", exist_ok=True)
 
     model_names = [
-        # "./Models/Qwen3-0.6B", 
-        # "./Models/Qwen3-4B", 
-        # "./Models/Qwen3-8B",
-        "./Models/Llama-3.2-1B",
-        # "./Models/Llama-3.2-3B",
-        # "./Models/Llama-3.2-8B"
+        # "../Models/Qwen3-0.6B", 
+        # "../Models/Qwen3-4B", 
+        # "../Models/Qwen3-8B",
+        "../Models/Llama-3.2-1B",
+        # "../Models/Llama-3.2-3B",
+        # "../Models/Llama-3.2-8B"
     ]
 
     batch_size = 16
@@ -181,7 +195,7 @@ if __name__ == "__main__":
         model, tokenizer = load_model(model_name)
         
         # 使用批处理
-        scores = detect_privacy_llm_batch(texts, tokenizer, model, batch_size=batch_size)
+        scores = detect_privacy_llm(texts, tokenizer, model)
         preds = []
         for idx, score in enumerate(scores):
             file_.write(f"Source:{texts[idx]}\tpredict:{score}\tlabel:{labels[idx]}\n")
