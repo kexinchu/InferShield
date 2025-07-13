@@ -1,20 +1,22 @@
+CUDA_VISIBLE_DEVICES=0,4,7
 import sys
 import os
 import subprocess
 
 if __name__ == "__main__":
-    model_name = "llama3-8b"
+    model_name = "llama3-70b"
     if len(sys.argv) > 1:
         model_name = sys.argv[1]
 
     local_path = {
-        "llama3-8b": "../Models/Llama-3.2-8B",
+        "llama3-70b": "/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct",
         "qwen3-8b": "../Models/Qwen3-8B"
     }
 
     print(f"Loading model: {model_name}")
-    
+
     # Use the existing launch_server module
+    # sys.executable, "python/sglang/launch_server.py",
     cmd = [
         sys.executable, "python/sglang/launch_server.py",
         "--model-path", local_path[model_name],
@@ -28,12 +30,12 @@ if __name__ == "__main__":
         "--sampling-backend", "pytorch",
         "--disable-cuda-graph",
         "--disable-cuda-graph-padding",
-        "--tp-size", "2"
+        "--tp-size", "3"
     ]
-    
+
     print("Starting HTTP server on port 8080...")
     print(f"Command: {' '.join(cmd)}")
-    
+
     # Add the python directory to the path
     env = os.environ.copy()
     python_path = os.path.join(os.path.dirname(__file__), 'python')
@@ -41,5 +43,5 @@ if __name__ == "__main__":
         env['PYTHONPATH'] = python_path + ':' + env['PYTHONPATH']
     else:
         env['PYTHONPATH'] = python_path
-    
+
     subprocess.run(cmd, env=env)

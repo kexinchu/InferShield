@@ -6,9 +6,8 @@ import queue
 import time
 import random
 import sys
-from transformers import AutoTokenizer
 import multiprocessing as mp
-from load_requests import load_requests
+from load_requests import load_jsonl_dataset
 
 SERVER_URL = "http://127.0.0.1:8080/v1/chat/completions"
 headers = {"Content-Type": "application/json"}
@@ -75,13 +74,13 @@ def report_latency():
         return
 
     avg_latency = sum(all_latencies) / len(all_latencies)
-    
+
     # Calculate percentiles
     sorted_latencies = sorted(all_latencies)
     p50_idx = int(0.5 * len(sorted_latencies))
     p95_idx = int(0.95 * len(sorted_latencies))
     p99_idx = int(0.99 * len(sorted_latencies))
-    
+
     p50_latency = sorted_latencies[p50_idx]
     p95_latency = sorted_latencies[p95_idx]
     p99_latency = sorted_latencies[p99_idx]
@@ -95,33 +94,20 @@ def report_latency():
 
 if __name__ == "__main__":
     mp.set_start_method('spawn', force=True)
-    model_name = "llama3-8b" 
+    file_name = "/dcar-vepfs-trans-models/Datasets/english_pii_43k.jsonl"
     if len(sys.argv) > 1:
-        model_name = sys.argv[1]
-    file_name = "configurable-system-prompt-multitask.parquet"
-    if len(sys.argv) > 2:
-        file_name = sys.argv[2]
-        
-    local_path = {
-        "llama3-8b": "../Models/Llama-3.2-8B",
-        "qwen3-8b": "../Models/Qwen3-8B"
-    }
-    
-    print("Loading tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained(local_path[model_name])
-    
+        file_name = sys.argv[1]
+
     print("Loading requests...")
-    user_requests = load_requests(
-        file_name, 
-        tokenizer, 
-        max_embedding_positions=4090
+    SAMPLE_N = 2000
+    user_requests, labels = load_jsonl_dataset(
+        file_name,
+        sample_n=SAMPLE_N
     )
-    sampled_requests = user_requests[:2]
+    sampled_requests = user_requests[:SAMPLE_N]
     random.shuffle(sampled_requests)
     # Take first 1000 requests
-    prompts = []
-    for prompt, _, _, session_id in sampled_requests:
-        prompts.append(prompt)
+    prompts = sampled_requests
 
     # 1. 打乱并分配requests到queues
     thread_queues = shuffle_and_assign_requests(prompts, NUM_THREADS)
@@ -137,7 +123,7 @@ if __name__ == "__main__":
     for i in range(NUM_THREADS):
         t = threading.Thread(
             target=worker,
-            args=(i, thread_session_ids[i], thread_queues[i], QPS_PER_THREAD, model_name)
+            args=(i, thread_session_ids[i], thread_queues[i], QPS_PER_THREAD, "llama3-70b")
         )
         t.start()
         threads.append(t)

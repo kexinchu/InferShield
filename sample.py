@@ -111,7 +111,7 @@ def detect_privacy_llm(input_texts, tokenizer, model, model_name):
         max_output_length = 10
         if "Qwen3" in model_name:
             max_output_length = 100
-        if "70B" in model_name:
+        if "70B" in model_name or "30B" in model_name or "32B" in model_name:
             max_output_length = 4096
 
         # 批处理编码
@@ -186,7 +186,7 @@ def worker(rank, model_name, texts, labels, save_dir):
 
 if __name__ == "__main__":
     mp.set_start_method("spawn", force=True)
-    SAMPLE_N = 200
+    SAMPLE_N = 100
 
     data_list = [
         "/dcar-vepfs-trans-models/Datasets/english_pii_43k.jsonl",
@@ -209,16 +209,18 @@ if __name__ == "__main__":
             # "/dcar-vepfs-trans-models/Qwen3-0.6B",
             # "/dcar-vepfs-trans-models/Qwen3-4B",
             # "/dcar-vepfs-trans-models/Qwen3-8B",
-            # "/dcar-vepfs-trans-models/Qwen3-32B",
-            # "/dcar-vepfs-trans-models/Qwen3-30B-A3B",
+            "/dcar-vepfs-trans-models/Qwen3-32B",
+            "/dcar-vepfs-trans-models/Qwen3-30B-A3B",
             # "/dcar-vepfs-trans-models/Llama-3.2-1B",
             # "/dcar-vepfs-trans-models/Llama-3.2-3B",
             # "/dcar-vepfs-trans-models/Llama-3.1-8B",
-            "/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct",
+            # "/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct",
         ]
 
         device_map = {
-            "/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct": [0,4,7]
+            "/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct": [0,4,7],
+            "/dcar-vepfs-trans-models/Qwen3-32B": [1],
+            "/dcar-vepfs-trans-models/Qwen3-30B-A3B": [2]
         }
 
         # 启动 8 个进程

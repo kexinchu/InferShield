@@ -1,0 +1,43 @@
+# max_output_length = 10
+[GPU0] /dcar-vepfs-trans-models/Qwen3-0.6B  Acc: 0.7894
+[GPU0] /dcar-vepfs-trans-models/Qwen3-0.6B Average Latency: 227.85 ms
+[GPU0] /dcar-vepfs-trans-models/Qwen3-0.6B 50th Percentile Latency: 224.58 ms
+[GPU0] /dcar-vepfs-trans-models/Qwen3-0.6B 95th Percentile Latency: 236.71 ms
+[GPU0] /dcar-vepfs-trans-models/Qwen3-0.6B 99th Percentile Latency: 310.76 ms
+
+[GPU3] /dcar-vepfs-trans-models/Llama-3.2-1B  Acc: 0.9622
+[GPU3] /dcar-vepfs-trans-models/Llama-3.2-1B Average Latency: 116.12 ms
+[GPU3] /dcar-vepfs-trans-models/Llama-3.2-1B 50th Percentile Latency: 124.92 ms
+[GPU3] /dcar-vepfs-trans-models/Llama-3.2-1B 95th Percentile Latency: 128.77 ms
+[GPU3] /dcar-vepfs-trans-models/Llama-3.2-1B 99th Percentile Latency: 140.77 ms
+
+[GPU3] /dcar-vepfs-trans-models/Llama-3.2-3B  Acc: 0.9550
+[GPU3] /dcar-vepfs-trans-models/Llama-3.2-3B Average Latency: 190.50 ms
+[GPU3] /dcar-vepfs-trans-models/Llama-3.2-3B 50th Percentile Latency: 220.00 ms
+[GPU3] /dcar-vepfs-trans-models/Llama-3.2-3B 95th Percentile Latency: 246.28 ms
+[GPU3] /dcar-vepfs-trans-models/Llama-3.2-3B 99th Percentile Latency: 278.86 ms
+
+[GPU4] /dcar-vepfs-trans-models/Llama-3.1-8B  Acc: 0.9358
+[GPU4] /dcar-vepfs-trans-models/Llama-3.1-8B Average Latency: 253.63 ms
+[GPU4] /dcar-vepfs-trans-models/Llama-3.1-8B 50th Percentile Latency: 288.09 ms
+[GPU4] /dcar-vepfs-trans-models/Llama-3.1-8B 95th Percentile Latency: 316.30 ms
+[GPU4] /dcar-vepfs-trans-models/Llama-3.1-8B 99th Percentile Latency: 347.11 ms
+
+[GPU5] /dcar-vepfs-trans-models/Qwen3-32B  Acc: 0.6652
+[GPU5] /dcar-vepfs-trans-models/Qwen3-32B Average Latency: 995.68 ms
+[GPU5] /dcar-vepfs-trans-models/Qwen3-32B 50th Percentile Latency: 989.79 ms
+[GPU5] /dcar-vepfs-trans-models/Qwen3-32B 95th Percentile Latency: 1032.72 ms
+[GPU5] /dcar-vepfs-trans-models/Qwen3-32B 99th Percentile Latency: 1057.71 ms
+
+deepseek-r1-250528  Acc: 0.8640
+deepseek-r1-250528 Average Latency: 21988.09 ms
+deepseek-r1-250528 50th Percentile Latency: 13283.06 ms
+deepseek-r1-250528 95th Percentile Latency: 72946.05 ms
+deepseek-r1-250528 99th Percentile Latency: 140334.06 ms
+
+# max_output_length = 100
+[GPU7] /dcar-vepfs-trans-models/Qwen3-0.6B  Acc: 0.9360
+[GPU7] /dcar-vepfs-trans-models/Qwen3-0.6B Average Latency: 3484.47 ms
+[GPU7] /dcar-vepfs-trans-models/Qwen3-0.6B 50th Percentile Latency: 3055.79 ms
+[GPU7] /dcar-vepfs-trans-models/Qwen3-0.6B 95th Percentile Latency: 6453.02 ms
+[GPU7] /dcar-vepfs-trans-models/Qwen3-0.6B 99th Percentile Latency: 7172.57 ms

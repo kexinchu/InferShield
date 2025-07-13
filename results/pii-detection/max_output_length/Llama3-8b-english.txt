@@ -1,0 +1,41 @@
+## max_output_length = 10
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B  Acc: 0.9610
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B Average Latency: 237.97 ms
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B 50th Percentile Latency: 279.38 ms
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B 95th Percentile Latency: 285.28 ms
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B 99th Percentile Latency: 289.59 ms
+
+## max_output_length = 20
+[GPU4] /dcar-vepfs-trans-models/Llama-3.1-8B  Acc: 0.9632
+[GPU4] /dcar-vepfs-trans-models/Llama-3.1-8B Average Latency: 358.04 ms
+[GPU4] /dcar-vepfs-trans-models/Llama-3.1-8B 50th Percentile Latency: 368.20 ms
+[GPU4] /dcar-vepfs-trans-models/Llama-3.1-8B 95th Percentile Latency: 563.94 ms
+[GPU4] /dcar-vepfs-trans-models/Llama-3.1-8B 99th Percentile Latency: 613.59 ms
+
+## max_output_length = 50
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B  Acc: 0.9710
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B Average Latency: 670.02 ms
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B 50th Percentile Latency: 506.69 ms
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B 95th Percentile Latency: 1175.01 ms
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B 99th Percentile Latency: 1193.45 ms
+
+## max_output_length = 100
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B  Acc: 0.9650
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B Average Latency: 1126.94 ms
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B 50th Percentile Latency: 442.25 ms
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B 95th Percentile Latency: 2303.95 ms
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B 99th Percentile Latency: 2321.72 ms
+
+## max_output_length = 150
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B  Acc: 0.9620
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B Average Latency: 1604.37 ms
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B 50th Percentile Latency: 444.23 ms
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B 95th Percentile Latency: 3590.75 ms
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B 99th Percentile Latency: 3655.35 ms
+
+## max_output_length = 200
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B  Acc: 0.9620
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B Average Latency: 1906.80 ms
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B 50th Percentile Latency: 334.83 ms
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B 95th Percentile Latency: 4664.22 ms
+[GPU6] /dcar-vepfs-trans-models/Llama-3.1-8B 99th Percentile Latency: 4919.51 ms

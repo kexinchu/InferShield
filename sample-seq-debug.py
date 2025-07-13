@@ -100,19 +100,12 @@ def detect_privacy_llm_batch(input_texts, tokenizer, model, batch_size=16):
     return scores
 
 # 保持原有的单样本处理函数作为备用
-def detect_privacy_llm(input_texts, tokenizer, model, model_name):
+def detect_privacy_llm(input_texts, tokenizer, model, max_output_length):
     scores = []
     latencies = []
     for i in range(0, len(input_texts)):
         text = input_texts[i]
         prompts = [make_prompt_llama_1B(text)]
-
-        # max_output_length
-        max_output_length = 10
-        if "Qwen3" in model_name:
-            max_output_length = 100
-        if "70B" in model_name:
-            max_output_length = 4096
 
         # 批处理编码
         inputs = tokenizer(prompts, return_tensors="pt", padding=True, padding_side='left', truncation=True).to(model.device)
@@ -139,54 +132,50 @@ def detect_privacy_llm(input_texts, tokenizer, model, model_name):
 
 # ---------- 每个子进程的工作 ----------
 def worker(rank, model_name, texts, labels, save_dir):
-    if len(rank) > 1:
-        str_rank = [str(i) for i in rank]
-        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(str_rank)
-    else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(rank[0])  # 让进程只看到 rank 这张卡
-        torch.cuda.set_device(0)                           # 因为上面只暴露一张卡，所以 cuda:0 就是物理卡 rank
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(rank)      # 让进程只看到 rank 这张卡
+    torch.cuda.set_device(0)                            # 因为上面只暴露一张卡，所以 cuda:0 就是物理卡 rank
 
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(
-        model_name, trust_remote_code=True, device_map="auto"
-    ) # .eval().half().cuda()
-    model.eval()
+        model_name, trust_remote_code=True
+    ).eval().half().cuda()
 
-    scores, latencies = detect_privacy_llm(texts, tokenizer, model, model_name)
+    for max_output_length in [10, 20, 50, 100, 150, 200]:
+        scores, latencies = detect_privacy_llm(texts, tokenizer, model, max_output_length)
 
-    # 写结果
-    os.makedirs(save_dir, exist_ok=True)
-    fname = os.path.join(save_dir, f"res_file-{model_name.split('/')[-1]}.txt")
-    with open(fname, "w") as f:
-        for idx, score in enumerate(scores):
-            f.write(f"Source:{texts[idx]}\tpredict:{score}\tlabel:{labels[idx]}\n")
+        # 写结果
+        os.makedirs(save_dir, exist_ok=True)
+        fname = os.path.join(save_dir, f"res_file-{model_name.split('/')[-1]}.txt")
+        # with open(fname, "w") as f:
+        #     for idx, score in enumerate(scores):
+        #         f.write(f"Source:{texts[idx]}\tpredict:{score}\tlabel:{labels[idx]}\n")
 
-    # 统计指标
-    preds = np.array([1 if s >= 0.7 else 0 for s in scores])
-    labels_np = np.array(labels)
-    acc = (preds == labels_np).mean()
+        # 统计指标
+        preds = np.array([1 if s >= 0.7 else 0 for s in scores])
+        labels_np = np.array(labels)
+        acc = (preds == labels_np).mean()
 
-    # 打印
-    print(f"[GPU{rank[0]}] {model_name}  Acc: {acc:.4f}")
-    if latencies:
-        avg_latency = sum(latencies) / len(latencies)
-        sorted_latencies = sorted(latencies)
-        p50_idx = int(0.5 * len(sorted_latencies))
-        p95_idx = int(0.95 * len(sorted_latencies))
-        p99_idx = int(0.99 * len(sorted_latencies))
-        p50_latency = sorted_latencies[p50_idx]
-        p95_latency = sorted_latencies[p95_idx]
-        p99_latency = sorted_latencies[p99_idx]
-        print(f"[GPU{rank[0]}] {model_name} Average Latency: {avg_latency:.2f} ms")
-        print(f"[GPU{rank[0]}] {model_name} 50th Percentile Latency: {p50_latency:.2f} ms")
-        print(f"[GPU{rank[0]}] {model_name} 95th Percentile Latency: {p95_latency:.2f} ms")
-        print(f"[GPU{rank[0]}] {model_name} 99th Percentile Latency: {p99_latency:.2f} ms")
-    torch.cuda.empty_cache()
+        # 打印
+        print(f"[GPU{rank}] {model_name}  Acc: {acc:.4f}")
+        if latencies:
+            avg_latency = sum(latencies) / len(latencies)
+            sorted_latencies = sorted(latencies)
+            p50_idx = int(0.5 * len(sorted_latencies))
+            p95_idx = int(0.95 * len(sorted_latencies))
+            p99_idx = int(0.99 * len(sorted_latencies))
+            p50_latency = sorted_latencies[p50_idx]
+            p95_latency = sorted_latencies[p95_idx]
+            p99_latency = sorted_latencies[p99_idx]
+            print(f"[GPU{rank}] {model_name} Average Latency: {avg_latency:.2f} ms")
+            print(f"[GPU{rank}] {model_name} 50th Percentile Latency: {p50_latency:.2f} ms")
+            print(f"[GPU{rank}] {model_name} 95th Percentile Latency: {p95_latency:.2f} ms")
+            print(f"[GPU{rank}] {model_name} 99th Percentile Latency: {p99_latency:.2f} ms")
+        torch.cuda.empty_cache()
 
 if __name__ == "__main__":
     mp.set_start_method("spawn", force=True)
-    SAMPLE_N = 200
+    SAMPLE_N = 1000
 
     data_list = [
         "/dcar-vepfs-trans-models/Datasets/english_pii_43k.jsonl",
@@ -202,32 +191,26 @@ if __name__ == "__main__":
         print(labels[1])
 
         # 创建结果目录
-        dir_path = "./results/pii-detection/" + data_path.split("/")[-1].split(".")[0]
+        dir_path = "./results/pii-detection/max_output_length"
         os.makedirs(dir_path, exist_ok=True)
 
         model_names = [
-            # "/dcar-vepfs-trans-models/Qwen3-0.6B",
-            # "/dcar-vepfs-trans-models/Qwen3-4B",
-            # "/dcar-vepfs-trans-models/Qwen3-8B",
-            # "/dcar-vepfs-trans-models/Qwen3-32B",
-            # "/dcar-vepfs-trans-models/Qwen3-30B-A3B",
-            # "/dcar-vepfs-trans-models/Llama-3.2-1B",
-            # "/dcar-vepfs-trans-models/Llama-3.2-3B",
-            # "/dcar-vepfs-trans-models/Llama-3.1-8B",
-            "/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct",
+            "/dcar-vepfs-trans-models/Qwen3-0.6B",
+            "/dcar-vepfs-trans-models/Qwen3-4B",
+            "/dcar-vepfs-trans-models/Qwen3-8B",
+            "/dcar-vepfs-trans-models/Qwen3-32B",
+            "/dcar-vepfs-trans-models/Qwen3-30B-A3B",
+            "/dcar-vepfs-trans-models/Llama-3.2-1B",
+            "/dcar-vepfs-trans-models/Llama-3.2-3B",
+            "/dcar-vepfs-trans-models/Llama-3.1-8B",
+            # "/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct",
         ]
-
-        device_map = {
-            "/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct": [0,4,7]
-        }
 
         # 启动 8 个进程
         processes = []
         for rank, mdl in enumerate(model_names):
-            if mdl in device_map:
-                rank = device_map[mdl]
-            else:
-                rank = [rank]
+            if mdl != "/dcar-vepfs-trans-models/Qwen3-32B":
+                continue
             p = mp.Process(target=worker, args=(rank, mdl, texts, labels, dir_path))
             p.start()
             processes.append(p)
