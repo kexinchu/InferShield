@@ -1,20 +1,22 @@
+#!/usr/bin/env python3
+"""
+Usage:
+python3 benchmark_diff_length.py --model_name doubao-1-5-pro-32k-250115
+
+python3 benchmark_diff_length.py --model_name deepseek-r1-250528
+"""
 import os
 import re
+import string
+import random
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+from openai import OpenAI
+import argparse
 import time
-import torch
 import numpy as np
-import torch.multiprocessing as mp
-from transformers import AutoTokenizer, AutoModelForCausalLM
 from load_requests import load_jsonl_dataset
 
-# 模型和tokenizer
-def load_model(model_name):
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True).eval().half().cuda()
-
-    return model, tokenizer
-
+# 构造 prompt
 def make_prompt_llama_1B(user_input):
     return f"""You are a privacy classification assistant.
 
@@ -67,8 +69,6 @@ Input: "James recently moved to 456 Oak Avenue."
 Answer: 0.96
 
 ## Now analyze the input below:
-Input: "{user_input}"
-Answer:
 """
 
 def make_prompt_deepseek(user_input: str) -> str:
@@ -157,98 +157,60 @@ Answer: {{"reasoning":"Exact GPS coordinates → PII","score":0.97}}
 Input: "Invoice #INV-2024-001"
 Answer: {{"reasoning":"Invoice number not tied to person without context → no PII","score":0.12}}
 
-Now analyze the input below:
-Input: "{user_input}"
-Answer:
+Now analyze the user's input:
 """
     return prompt
 
-# 模型推理 - 批处理版本
-def detect_privacy_llm_batch(input_texts, tokenizer, model, batch_size=16):
-    scores = []
-    for i in range(0, len(input_texts), batch_size):
-        batch_texts = input_texts[i:i+batch_size]
-        prompts = [make_prompt_deepseek(text) for text in batch_texts]
+def shuffle_and_assign_requests(num_request, length):
+    """将requests打乱后，均匀分配到每个thread的queue"""
+    queue = []
+    for _ in range(num_request):
+        # 生成指定长度的随机prompt - 使用字母、数字和常见标点符号
+        chars = string.ascii_letters + string.digits + " .,!?;:"
+        req = ''.join(random.choice(chars) for _ in range(length))
+        queue.append(req)
+    return queue
 
-        # 批处理编码
-        inputs = tokenizer(prompts, return_tensors="pt", padding=True, padding_side='left', truncation=True).to(model.device)
-        with torch.no_grad():
-            outputs = model.generate(**inputs, max_new_tokens=10)
-
-        # 解码每个样本的输出
-        for j, output in enumerate(outputs):
-            # 获取新生成的token
-            input_length = inputs["input_ids"].shape[1] if len(inputs["input_ids"].shape) > 1 else inputs["input_ids"].shape[0]
-            result = tokenizer.decode(output[input_length:], skip_special_tokens=True).strip()
-
-            # 尝试解析成 float
-            try:
-                score = [float(num) for num in re.findall(r'[-+]?\d*\.\d+|\d+', result)]
-                score = max(0.0, min(1.0, score[0]))
-            except:
-                score = 0.5
-            scores.append(score)
-
-    return scores
-
-# 保持原有的单样本处理函数作为备用
-def detect_privacy_llm(input_texts, tokenizer, model, max_output_length):
+# 模型处理
+def detect_privacy_llm(client: OpenAI, input_texts, model_name):
+    """
+    发送单个流式请求，返回包含时间戳和 token 统计的字典。
+    字段：
+      start_ts, first_chunk, chunk_ts_list, end_ts,
+      prompt_tokens, total_tokens, completion_tokens
+    """
     scores = []
     latencies = []
     for i in range(0, len(input_texts)):
         text = input_texts[i]
-        prompts = [make_prompt_llama_1B(text)]
+        system_prompt = make_prompt_deepseek(text)
 
-        # 批处理编码
-        inputs = tokenizer(prompts, return_tensors="pt", padding=True, padding_side='left', truncation=True).to(model.device)
-        with torch.no_grad():
-            start = time.perf_counter()
-            outputs = model.generate(**inputs, max_new_tokens=max_output_length)
-            latencies.append((time.perf_counter() - start) * 1000)
+        payload = {
+            "model": model_name,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": text}
+            ],
+        }
 
-        # 解码每个样本的输出
-        for j, output in enumerate(outputs):
-            # 获取新生成的token
-            input_length = inputs["input_ids"].shape[1] if len(inputs["input_ids"].shape) > 1 else inputs["input_ids"].shape[0]
-            result = tokenizer.decode(output[input_length:], skip_special_tokens=True).strip()
-
-            # 尝试解析成 float
-            try:
-                score = [float(num) for num in re.findall(r'[-+]?\d*\.\d+|\d+', result)]
-                score = max(0.0, min(1.0, score[0]))
-            except:
-                score = 0.5
-            scores.append(score)
+        start = time.perf_counter()
+        stream = client.chat.completions.create(
+            model=payload["model"],
+            messages=payload["messages"],
+            stream=False,
+            max_tokens=4096
+        )
+        latencies.append((time.perf_counter() - start) * 1000)
+        scores.append(0.5)
 
     return scores, latencies
 
 # ---------- 每个子进程的工作 ----------
-def worker(rank, model_name, texts, labels, save_dir):
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(rank)      # 让进程只看到 rank 这张卡
-    torch.cuda.set_device(0)                            # 因为上面只暴露一张卡，所以 cuda:0 就是物理卡 rank
-
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name, trust_remote_code=True
-    ).eval().half().cuda()
-
-    scores, latencies = detect_privacy_llm(texts, tokenizer, model, 4096)
-
-    # 写结果
-    # os.makedirs(save_dir, exist_ok=True)
-    # fname = os.path.join(save_dir, f"res_file-{model_name.split('/')[-1]}.txt")
-    # with open(fname, "w") as f:
-    #     for idx, score in enumerate(scores):
-    #         f.write(f"Source:{texts[idx]}\tpredict:{score}\tlabel:{labels[idx]}\n")
-
-    # 统计指标
-    preds = np.array([1 if s >= 0.7 else 0 for s in scores])
-    labels_np = np.array(labels)
-    acc = (preds == labels_np).mean()
+def worker(client, model_name, texts):
+    scores, latencies = detect_privacy_llm(client, texts, model_name)
 
     # 打印
-    print(f"[GPU{rank}] {model_name}  Acc: {acc:.4f}")
+    print(f"{model_name}  Acc: Not Care")
     if latencies:
         avg_latency = sum(latencies) / len(latencies)
         sorted_latencies = sorted(latencies)
@@ -258,52 +220,31 @@ def worker(rank, model_name, texts, labels, save_dir):
         p50_latency = sorted_latencies[p50_idx]
         p95_latency = sorted_latencies[p95_idx]
         p99_latency = sorted_latencies[p99_idx]
-        print(f"[GPU{rank}] {model_name} Average Latency: {avg_latency:.2f} ms")
-        print(f"[GPU{rank}] {model_name} 50th Percentile Latency: {p50_latency:.2f} ms")
-        print(f"[GPU{rank}] {model_name} 95th Percentile Latency: {p95_latency:.2f} ms")
-        print(f"[GPU{rank}] {model_name} 99th Percentile Latency: {p99_latency:.2f} ms")
-    torch.cuda.empty_cache()
+        print(f"{model_name} Average Latency: {avg_latency:.2f} ms")
+        print(f"{model_name} 50th Percentile Latency: {p50_latency:.2f} ms")
+        print(f"{model_name} 95th Percentile Latency: {p95_latency:.2f} ms")
+        print(f"{model_name} 99th Percentile Latency: {p99_latency:.2f} ms")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model_name", type=str, required=True, help="models name")
+    args = parser.parse_args()
+
+    client = OpenAI(
+        base_url="https://ark.cn-beijing.volces.com/api/v3",
+        api_key="efb7ff5c-5dd4-446b-b73d-aa5910913f7c"
+    )
+
+    # 简单的提示列表，可根据实际情况替换
+    SAMPLE_N = 100
+    for length in [512, 1024, 2048, 4096, 8192, 16384, 32758, 65536]:
+        texts = shuffle_and_assign_requests(SAMPLE_N, length)
+        # 检查字段名
+        print(f"length: {length}")
+
+        worker(client, args.model_name, texts)
+
 
 if __name__ == "__main__":
-    mp.set_start_method("spawn", force=True)
-    SAMPLE_N = 200
-
-    data_list = [
-        "/dcar-vepfs-trans-models/Datasets/english_pii_43k.jsonl",
-        "/dcar-vepfs-trans-models/Datasets/french_pii_62k.jsonl",
-        "/dcar-vepfs-trans-models/Datasets/german_pii_52k.jsonl",
-        "/dcar-vepfs-trans-models/Datasets/italian_pii_50k.jsonl"
-    ]
-
-    for data_path in data_list:
-        texts, labels = load_jsonl_dataset(data_path, sample_n=SAMPLE_N)
-        # 检查字段名
-        print(texts[0])
-        print(labels[1])
-
-        # 创建结果目录
-        dir_path = "./results/pii-detection/max_output_length"
-        os.makedirs(dir_path, exist_ok=True)
-
-        model_names = [
-            # "/dcar-vepfs-trans-models/Qwen3-0.6B",
-            "/dcar-vepfs-trans-models/Qwen3-4B",
-            "/dcar-vepfs-trans-models/Qwen3-8B",
-            "/dcar-vepfs-trans-models/Qwen3-32B",
-            # "/dcar-vepfs-trans-models/Llama-3.2-1B",
-            # "/dcar-vepfs-trans-models/Llama-3.2-3B",
-            # "/dcar-vepfs-trans-models/Llama-3.1-8B",
-            # "/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct",
-        ]
-
-        # 启动 8 个进程
-        processes = []
-        for rank, mdl in enumerate(model_names):
-            if mdl != "/dcar-vepfs-trans-models/Qwen3-32B":
-                continue
-            p = mp.Process(target=worker, args=(rank, mdl, texts, labels, dir_path))
-            p.start()
-            processes.append(p)
-
-        for p in processes:
-            p.join()
+    main()

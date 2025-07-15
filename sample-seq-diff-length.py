@@ -111,7 +111,7 @@ def detect_privacy_llm(input_texts, tokenizer, model, model_name):
         max_output_length = 10
         if "Qwen3" in model_name:
             max_output_length = 100
-        if "70B" in model_name or "30B" in model_name or "32B" in model_name:
+        if "70B" in model_name or "32B" in model_name:
             max_output_length = 4096
 
         # 批处理编码
@@ -138,37 +138,11 @@ def detect_privacy_llm(input_texts, tokenizer, model, model_name):
     return scores, latencies
 
 # ---------- 每个子进程的工作 ----------
-def worker(rank, model_name, texts, labels, save_dir):
-    if len(rank) > 1:
-        str_rank = [str(i) for i in rank]
-        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(str_rank)
-    else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(rank[0])  # 让进程只看到 rank 这张卡
-        torch.cuda.set_device(0)                           # 因为上面只暴露一张卡，所以 cuda:0 就是物理卡 rank
-
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name, trust_remote_code=True, device_map="auto"
-    ) # .eval().half().cuda()
-    model.eval()
-
+def worker(model, tokenizer, model_name, texts):
     scores, latencies = detect_privacy_llm(texts, tokenizer, model, model_name)
 
-    # 写结果
-    os.makedirs(save_dir, exist_ok=True)
-    fname = os.path.join(save_dir, f"res_file-{model_name.split('/')[-1]}.txt")
-    with open(fname, "w") as f:
-        for idx, score in enumerate(scores):
-            f.write(f"Source:{texts[idx]}\tpredict:{score}\tlabel:{labels[idx]}\n")
-
-    # 统计指标
-    preds = np.array([1 if s >= 0.7 else 0 for s in scores])
-    labels_np = np.array(labels)
-    acc = (preds == labels_np).mean()
-
     # 打印
-    print(f"[GPU{rank[0]}] {model_name}  Acc: {acc:.4f}")
+    print(f"{model_name}  Acc: Not Care")
     if latencies:
         avg_latency = sum(latencies) / len(latencies)
         sorted_latencies = sorted(latencies)
@@ -178,61 +152,71 @@ def worker(rank, model_name, texts, labels, save_dir):
         p50_latency = sorted_latencies[p50_idx]
         p95_latency = sorted_latencies[p95_idx]
         p99_latency = sorted_latencies[p99_idx]
-        print(f"[GPU{rank[0]}] {model_name} Average Latency: {avg_latency:.2f} ms")
-        print(f"[GPU{rank[0]}] {model_name} 50th Percentile Latency: {p50_latency:.2f} ms")
-        print(f"[GPU{rank[0]}] {model_name} 95th Percentile Latency: {p95_latency:.2f} ms")
-        print(f"[GPU{rank[0]}] {model_name} 99th Percentile Latency: {p99_latency:.2f} ms")
+        print(f"{model_name} Average Latency: {avg_latency:.2f} ms")
+        print(f"{model_name} 50th Percentile Latency: {p50_latency:.2f} ms")
+        print(f"{model_name} 95th Percentile Latency: {p95_latency:.2f} ms")
+        print(f"{model_name} 99th Percentile Latency: {p99_latency:.2f} ms")
     torch.cuda.empty_cache()
+
+def shuffle_and_assign_requests(num_request, length):
+    """将requests打乱后，均匀分配到每个thread的queue"""
+    import string
+    import random
+    queue = []
+    for _ in range(num_request):
+        # 生成指定长度的随机prompt - 使用字母、数字和常见标点符号
+        chars = string.ascii_letters + string.digits + " .,!?;:"
+        req = ''.join(random.choice(chars) for _ in range(length))
+        queue.append(req)
+    return queue
 
 if __name__ == "__main__":
     mp.set_start_method("spawn", force=True)
-    SAMPLE_N = 100
+    SAMPLE_N = 200
 
-    data_list = [
-        "/dcar-vepfs-trans-models/Datasets/english_pii_43k.jsonl",
-        # "/dcar-vepfs-trans-models/Datasets/french_pii_62k.jsonl",
-        # "/dcar-vepfs-trans-models/Datasets/german_pii_52k.jsonl",
-        # "/dcar-vepfs-trans-models/Datasets/italian_pii_50k.jsonl"
+    model_names = [
+        # "/dcar-vepfs-trans-models/Qwen3-0.6B",
+        # "/dcar-vepfs-trans-models/Qwen3-4B",
+        # "/dcar-vepfs-trans-models/Qwen3-8B",
+        # "/dcar-vepfs-trans-models/Qwen3-32B",
+        # "/dcar-vepfs-trans-models/Qwen3-30B-A3B",
+        "/dcar-vepfs-trans-models/Llama-3.2-1B",
+        # "/dcar-vepfs-trans-models/Llama-3.2-3B",
+        # "/dcar-vepfs-trans-models/Llama-3.1-8B",
+        # "/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct",
     ]
 
-    for data_path in data_list:
-        texts, labels = load_jsonl_dataset(data_path, sample_n=SAMPLE_N)
-        # 检查字段名
-        print(texts[0])
-        print(labels[1])
+    device_map = {
+        "/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct": [4,5,6,7],
+        "/dcar-vepfs-trans-models/Qwen3-32B": [3],
+        "/dcar-vepfs-trans-models/Llama-3.2-1B": [0],
+    }
 
-        # 创建结果目录
-        dir_path = "./results/pii-detection/" + data_path.split("/")[-1].split(".")[0]
-        os.makedirs(dir_path, exist_ok=True)
+    for rank, mdl in enumerate(model_names):
+        if mdl in device_map:
+            rank = device_map[mdl]
+        else:
+            rank = [rank]
+        # set cuda
+        if len(rank) > 1:
+            str_rank = [str(i) for i in rank]
+            os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(str_rank)
+        else:
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(rank[0])  # 让进程只看到 rank 这张卡
+            torch.cuda.set_device(0)                           # 因为上面只暴露一张卡，所以 cuda:0 就是物理卡 rank
 
-        model_names = [
-            # "/dcar-vepfs-trans-models/Qwen3-0.6B",
-            # "/dcar-vepfs-trans-models/Qwen3-4B",
-            # "/dcar-vepfs-trans-models/Qwen3-8B",
-            "/dcar-vepfs-trans-models/Qwen3-32B",
-            "/dcar-vepfs-trans-models/Qwen3-30B-A3B",
-            # "/dcar-vepfs-trans-models/Llama-3.2-1B",
-            # "/dcar-vepfs-trans-models/Llama-3.2-3B",
-            # "/dcar-vepfs-trans-models/Llama-3.1-8B",
-            # "/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct",
-        ]
+        tokenizer = AutoTokenizer.from_pretrained(mdl, trust_remote_code=True)
+        tokenizer.pad_token = tokenizer.eos_token
+        model = AutoModelForCausalLM.from_pretrained(
+            mdl, trust_remote_code=True, device_map="auto"
+        )
+        model.eval()
 
-        device_map = {
-            "/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct": [0,4,7],
-            "/dcar-vepfs-trans-models/Qwen3-32B": [1],
-            "/dcar-vepfs-trans-models/Qwen3-30B-A3B": [2]
-        }
+        for length in [512, 1024, 2048, 4096, 8192, 16384, 32768, 65536]:
+            if length < 32768:
+                continue
+            texts = shuffle_and_assign_requests(SAMPLE_N, length)
+            # 检查字段名
+            print(f"length: {length}")
 
-        # 启动 8 个进程
-        processes = []
-        for rank, mdl in enumerate(model_names):
-            if mdl in device_map:
-                rank = device_map[mdl]
-            else:
-                rank = [rank]
-            p = mp.Process(target=worker, args=(rank, mdl, texts, labels, dir_path))
-            p.start()
-            processes.append(p)
-
-        for p in processes:
-            p.join()
+            worker(model, tokenizer, mdl, texts)

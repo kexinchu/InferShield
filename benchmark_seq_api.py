@@ -247,7 +247,7 @@ def main():
     )
 
     # 简单的提示列表，可根据实际情况替换
-    SAMPLE_N = 100
+    SAMPLE_N = 200
     texts, labels = load_jsonl_dataset("/dcar-vepfs-trans-models/Datasets/italian_pii_50k.jsonl", sample_n=SAMPLE_N)
     # 检查字段名
     print(texts[0])

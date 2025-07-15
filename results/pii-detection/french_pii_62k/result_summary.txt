@@ -17,6 +17,12 @@
 [GPU6] /dcar-vepfs-trans-models/Qwen3-8B 95th Percentile Latency: 9149.06 ms
 [GPU6] /dcar-vepfs-trans-models/Qwen3-8B 99th Percentile Latency: 9711.58 ms
 
+[GPU2] /dcar-vepfs-trans-models/Qwen3-32B  Acc: 0.8350
+[GPU2] /dcar-vepfs-trans-models/Qwen3-32B Average Latency: 158214.96 ms
+[GPU2] /dcar-vepfs-trans-models/Qwen3-32B 50th Percentile Latency: 45526.88 ms
+[GPU2] /dcar-vepfs-trans-models/Qwen3-32B 95th Percentile Latency: 323734.54 ms
+[GPU2] /dcar-vepfs-trans-models/Qwen3-32B 99th Percentile Latency: 324205.92 ms
+
 # max_output_length = 10
 [GPU7] /dcar-vepfs-trans-models/Qwen3-0.6B  Acc: 0.7596
 [GPU7] /dcar-vepfs-trans-models/Qwen3-0.6B Average Latency: 238.62 ms

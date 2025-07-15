@@ -1,0 +1,15 @@
+length: 512
+/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct  Acc: Not Care
+/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct Average Latency: 283677.54 ms
+/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct 50th Percentile Latency: 21025.67 ms
+/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct 95th Percentile Latency: 661027.70 ms
+/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct 99th Percentile Latency: 661777.64 ms
+
+length: 1024
+/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct  Acc: Not Care
+/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct Average Latency: 219687.05 ms
+/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct 50th Percentile Latency: 22025.83 ms
+/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct 95th Percentile Latency: 694719.95 ms
+/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct 99th Percentile Latency: 695685.05 ms
+
+length: 2048
