@@ -348,29 +348,38 @@ def test_acc(detector):
     # 测试文本
     from utils import load_jsonl_dataset
     import numpy as np
-    texts, labels = load_jsonl_dataset("/workspace/Datasets/italian_pii_50k.jsonl", sample_n=2000)
-    # 检查字段名
-    print(texts[0])
-    print(labels[1])
+    for file_name in [
+        # "/root/code/sglang-security/results/english_pii_43k-new_prompts.txt",
+        # "/root/code/sglang-security/results/french_pii_62k-new_prompts.txt",
+        # "/root/code/sglang-security/results/german_pii_52k-new_prompts.txt",
+        # "/root/code/sglang-security/results/italian_pii_50k-new_prompts.txt"
+        "/dcar-vepfs-trans-models/Datasets/english_pii_43k.jsonl",
+        "/dcar-vepfs-trans-models/Datasets/french_pii_62k.jsonl",
+        "/dcar-vepfs-trans-models/Datasets/german_pii_52k.jsonl",
+        "/dcar-vepfs-trans-models/Datasets/italian_pii_50k.jsonl"
+    ]:
+        texts, labels = load_jsonl_dataset(file_name, sample_n=40000)
+        # 检查字段名
+        print(len(texts))
 
-    # 批量检测
-    batch_size = 16
-    preds = []
-    for i in range(0, len(texts), batch_size):
-        test_texts = texts[i:i+batch_size]
-        results = detector.batch_detect(test_texts)
+        # 批量检测
+        batch_size = 16
+        preds = []
+        for i in range(0, len(texts), batch_size):
+            test_texts = texts[i:i+batch_size]
+            results = detector.batch_detect(test_texts)
 
-        for i, (text, result) in enumerate(zip(test_texts, results)):
-            preds.append(1 if result.is_private else 0)
+            for i, (text, result) in enumerate(zip(test_texts, results)):
+                preds.append(1 if result.is_private else 0)
 
-    # 显示统计信息
-    stats = detector.get_stats()
-    preds = np.array(preds)
-    labels_np = np.array(labels)
-    acc = (preds == labels_np).mean()
-    print(f"Accuracy for Custom Detctor: {acc:.4f}")
+        # 显示统计信息
+        stats = detector.get_stats()
+        preds = np.array(preds)
+        labels_np = np.array(labels)
+        acc = (preds == labels_np).mean()
+        print(f"Accuracy for Custom Detctor: {acc:.4f}")
 
-def test_perf(detector):
+def test_perf(detector, is_length_):
     import string
     import random
     def shuffle_and_assign_requests(num_request, length):
@@ -382,39 +391,104 @@ def test_perf(detector):
             req = ''.join(random.choice(chars) for _ in range(length))
             queue.append(req)
         return queue
+    # 简单的提示列表，可根据实际情况替换
+    SAMPLE_N = 2000
+    if is_length_:
+        for length in [512, 1024, 2048, 4096, 8192, 16384, 32758, 65536]:
+            texts = shuffle_and_assign_requests(SAMPLE_N, length)
+            # 检查字段名
+            print(f"length: {length}")
+
+            # 批量检测
+            latencies = []
+            for i in range(0, len(texts), 1):
+                test_texts = texts[i]
+                start = time.perf_counter()
+                results = detector.batch_detect([test_texts])
+                latencies.append((time.perf_counter() - start) * 1000)
+
+            # 打印
+            print(f"layer-1  Acc: Not Care")
+            if latencies:
+                avg_latency = sum(latencies) / len(latencies)
+                sorted_latencies = sorted(latencies)
+                p50_idx = int(0.5 * len(sorted_latencies))
+                p95_idx = int(0.95 * len(sorted_latencies))
+                p99_idx = int(0.99 * len(sorted_latencies))
+                p50_latency = sorted_latencies[p50_idx]
+                p95_latency = sorted_latencies[p95_idx]
+                p99_latency = sorted_latencies[p99_idx]
+                print(f"layer-1 Average Latency: {avg_latency:.2f} ms")
+                print(f"layer-1 50th Percentile Latency: {p50_latency:.2f} ms")
+                print(f"layer-1 95th Percentile Latency: {p95_latency:.2f} ms")
+                print(f"layer-1 99th Percentile Latency: {p99_latency:.2f} ms")
+    else:
+        from utils import load_jsonl_dataset
+        for file_name in [
+            "/dcar-vepfs-trans-models/Datasets/english_pii_43k.jsonl",
+            "/dcar-vepfs-trans-models/Datasets/french_pii_62k.jsonl",
+            "/dcar-vepfs-trans-models/Datasets/german_pii_52k.jsonl",
+            "/dcar-vepfs-trans-models/Datasets/italian_pii_50k.jsonl"
+        ]:
+            texts, labels = load_jsonl_dataset(file_name, sample_n=SAMPLE_N)
+            # 检查字段名
+
+            # 批量检测
+            latencies = []
+            for i in range(0, len(texts), 1):
+                test_texts = texts[i]
+                start = time.perf_counter()
+                results = detector.batch_detect([test_texts])
+                latencies.append((time.perf_counter() - start) * 1000)
+
+            # 打印
+            print(f"layer-1  Acc: Not Care")
+            if latencies:
+                avg_latency = sum(latencies) / len(latencies)
+                sorted_latencies = sorted(latencies)
+                p50_idx = int(0.5 * len(sorted_latencies))
+                p95_idx = int(0.95 * len(sorted_latencies))
+                p99_idx = int(0.99 * len(sorted_latencies))
+                p50_latency = sorted_latencies[p50_idx]
+                p95_latency = sorted_latencies[p95_idx]
+                p99_latency = sorted_latencies[p99_idx]
+                print(f"layer-1 Average Latency: {avg_latency:.2f} ms")
+                print(f"layer-1 50th Percentile Latency: {p50_latency:.2f} ms")
+                print(f"layer-1 95th Percentile Latency: {p95_latency:.2f} ms")
+                print(f"layer-1 99th Percentile Latency: {p99_latency:.2f} ms")
+
+# 获取未检测的数据集合
+def get_after_level_1(detector):
     # 测试文本
     from utils import load_jsonl_dataset
     import numpy as np
-    # 简单的提示列表，可根据实际情况替换
-    SAMPLE_N = 2000
-    for length in [512, 1024, 2048, 4096, 8192, 16384, 32758, 65536]:
-        texts = shuffle_and_assign_requests(SAMPLE_N, length)
-        # 检查字段名
-        print(f"length: {length}")
+    for file_name in [
+        "/dcar-vepfs-trans-models/Datasets/english_pii_43k.jsonl",
+        "/dcar-vepfs-trans-models/Datasets/french_pii_62k.jsonl",
+        "/dcar-vepfs-trans-models/Datasets/german_pii_52k.jsonl",
+        "/dcar-vepfs-trans-models/Datasets/italian_pii_50k.jsonl"
+    ]:
+        texts, labels = load_jsonl_dataset(file_name, sample_n=5000)
+        batch_size = 16
 
-        # 批量检测
-        latencies = []
-        for i in range(0, len(texts), 1):
-            test_texts = texts[i]
-            start = time.perf_counter()
-            results = detector.batch_detect([test_texts])
-            latencies.append((time.perf_counter() - start) * 1000)
+        # 写结果
+        ori_name = file_name.split("/")[-1].split(".")[0]
+        fname = f"/root/code/sglang-security/results/{ori_name}-after_level_1.jsonl"
+        with open(fname, "w") as f:
+            # 批量检测
+            for i in range(0, len(texts), batch_size):
+                test_texts = texts[i:i+batch_size]
+                results = detector.batch_detect(test_texts)
 
-        # 打印
-        print(f"layer-1  Acc: Not Care")
-        if latencies:
-            avg_latency = sum(latencies) / len(latencies)
-            sorted_latencies = sorted(latencies)
-            p50_idx = int(0.5 * len(sorted_latencies))
-            p95_idx = int(0.95 * len(sorted_latencies))
-            p99_idx = int(0.99 * len(sorted_latencies))
-            p50_latency = sorted_latencies[p50_idx]
-            p95_latency = sorted_latencies[p95_idx]
-            p99_latency = sorted_latencies[p99_idx]
-            print(f"layer-1 Average Latency: {avg_latency:.2f} ms")
-            print(f"layer-1 50th Percentile Latency: {p50_latency:.2f} ms")
-            print(f"layer-1 95th Percentile Latency: {p95_latency:.2f} ms")
-            print(f"layer-1 99th Percentile Latency: {p99_latency:.2f} ms")
+                for i, (text, result) in enumerate(zip(test_texts, results)):
+                    if result.is_private:
+                        continue
+
+                    tmp = {
+                        "prompt": text,
+                        "label": labels[i],
+                    }
+                    f.write(json.dumps(tmp, ensure_ascii=False) + "\n")
 
 # 使用示例
 if __name__ == "__main__":
@@ -424,4 +498,6 @@ if __name__ == "__main__":
     # 添加自定义处理器
     detector.add_custom_handler('internal_documents', detect_internal_documents)
 
-    test_perf(detector)
+    test_perf(detector, False)
+    # test_acc(detector)
+    # get_after_level_1(detector)

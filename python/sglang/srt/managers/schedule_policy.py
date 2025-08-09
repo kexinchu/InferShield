@@ -27,7 +27,8 @@ from sglang.srt.mem_cache.base_prefix_cache import BasePrefixCache
 from sglang.srt.mem_cache.memory_pool import TokenToKVPoolAllocator
 from sglang.srt.mem_cache.radix_cache import RadixCache
 from sglang.srt.mem_cache.tree_node import TreeNode
-from sglang.srt.server_args import PortArgs, ServerArgs
+# from sglang.srt.server_args import PortArgs, ServerArgs
+from sglang.srt.managers.private_service.private_client import PrivateJudgeClient
 
 # Clip the estimation of max_new_tokens for the request whose max_new_tokens is very large.
 # This can prevent the server from being too conservative.
@@ -76,8 +77,7 @@ class SchedulePolicy:
         policy: str,
         tree_cache: BasePrefixCache,
         enable_hierarchical_cache: bool,
-        server_args: ServerArgs,
-        port_args: PortArgs,
+        private_judge_client: PrivateJudgeClient,
     ):
         self.policy = self._validate_and_adjust_policy(policy, tree_cache)
         self.tree_cache = tree_cache
@@ -89,8 +89,7 @@ class SchedulePolicy:
             token_to_kv_pool_allocator=None,
             page_size=1,
             disable=False,
-            server_args=server_args,
-            port_args=port_args,
+            private_judge_client=private_judge_client
         )
 
     def calc_priority(self, waiting_queue: List[Req]) -> bool:

@@ -4,9 +4,9 @@ import torch
 import torch.nn.functional as F
 
 # 2. Tokenizer
-tokenizer = AutoTokenizer.from_pretrained('./Models/piiranha-v1')
+tokenizer = AutoTokenizer.from_pretrained('/dcar-vepfs-trans-models/piiranha-v1')
 # 3. 模型定义
-model = AutoModelForTokenClassification.from_pretrained("./Models/piiranha-v1")
+model = AutoModelForTokenClassification.from_pretrained("/dcar-vepfs-trans-models/piiranha-v1")
 
 # 获取豁免标签（仅在首次初始化时转换为 tensor）
 ignore_labels = ["O"] #, "I-CITY"]
@@ -31,7 +31,6 @@ def predict(text):
     for i in range(is_private_mask.shape[0]):  # 遍历batch
         token_mask = is_private_mask[i]  # [seq_len]
         contains_privacy = token_mask.any().item()
-        print(token_mask)
 
         if contains_privacy:
             double_check = token_mask.int()
@@ -49,18 +48,25 @@ def predict(text):
             trust_score = probs[i, :, o_label_id].mean().item()
             untrust_score = 1.0 - trust_score
 
-        print(f"Sample {i} untrust_score: {untrust_score:.4f}")
-
     return double_check_privacy
 
 # 示例预测
 # 示例
-test_sentences = [
-    "My name is Alice and my phone number is 555-123-4567.",
-    "The capital of France is Paris.",
-    "Email me at john.doe@example.com",
-    "Please tell me for more info.",
-]
+batch_ = []
+num_true = 0
+num_total = 0
+with open("./results/english_non_17.jsonl", "r") as fr:
+    lines = fr.readlines()
+    for line in lines:
+        if len(batch_) >= 16:
+            contains = predict(batch_)
+            for x in contains:
+                if x:
+                    num_true += 1
+            num_total += len(contains)
+            batch_ = []
+        else:
+            batch_.append(line)
 
-contains = predict(test_sentences)
-print(f"\"{contains}\" → 包含敏感信息? {contains}")
+print(f"accuracy: {float(num_true)/num_total}")
+

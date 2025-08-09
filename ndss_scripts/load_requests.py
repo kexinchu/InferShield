@@ -70,15 +70,15 @@ def read_multiturn_chat(file_path, max_num=-1):
             data = json.loads(line)
             full_context = data.get("instruction", "").strip()
             final_answer = data.get("output", "").strip()
-            
+
             # 如果context为空，跳过
             if not full_context:
                 continue
-                
+
             # 分割对话轮次
             turns = full_context.split("\n")
             current_context = ""
-            
+
             # 处理每一轮对话
             for i in range(0, len(turns), 2):
                 if i + 1 >= len(turns):  # 如果是最后一轮且没有回答，使用final_answer
@@ -93,9 +93,9 @@ def read_multiturn_chat(file_path, max_num=-1):
                         current_answer = turns[i + 1].replace("Assistant:", "").strip()
                         requests.append((current_context.strip(), current_answer, session_id))
                         current_context += turns[i + 1] + "\n"
-            
+
             session_id += 1
-                
+
     return requests
 
 def read_configurable_system_prompt_multitask(file_path, max_num=-1):
@@ -109,9 +109,9 @@ def read_configurable_system_prompt_multitask(file_path, max_num=-1):
     return requests
 
 def load_requests(
-        req_file, 
-        tokenizer, 
-        max_embedding_positions, 
+        req_file,
+        tokenizer,
+        max_embedding_positions,
         max_nums=-1
     ) -> List[Tuple[str, int, int, int]]:
     requests = []
@@ -172,13 +172,21 @@ def load_jsonl_dataset(path, sample_n=1000, seed=42):
     labels = []
     for line in lines:
         item = json.loads(line)
-        texts.append(item["source_text"])
+
         # 判断是否有PII
-        bio_labels = item["mbert_bio_labels"]
-        if isinstance(bio_labels, str):
-            bio_labels = eval(bio_labels)  # 兼容字符串格式
-        label = 1 if any(l != "O" for l in bio_labels) else 0
-        labels.append(label)
+        if "new_prompts" in path:
+            texts.append(item["rewritten"])
+            labels.append(item["label"])
+        elif "after_level" in path or "warmup" in path or "actual" in path:
+            texts.append(item["prompt"])
+            labels.append(item["label"])
+        else:
+            texts.append(item["source_text"])
+            bio_labels = item["mbert_bio_labels"]
+            if isinstance(bio_labels, str):
+                bio_labels = eval(bio_labels)  # 兼容字符串格式
+            label = 1 if any(l != "O" for l in bio_labels) else 0
+            labels.append(label)
     return texts, labels
 
 if __name__ == "__main__":
@@ -186,7 +194,7 @@ if __name__ == "__main__":
     # def load_tokenizer(model_name):
     #     tokenizer = AutoTokenizer.from_pretrained(model_name)
     #     return tokenizer
-    
+
     # def local_model_path(model_root_dir: str) -> str:
     #     # model 路径
     #     local_model_dir = model_root_dir

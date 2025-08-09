@@ -7,6 +7,8 @@ import torch.multiprocessing as mp
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from load_requests import load_jsonl_dataset
 
+MODEL_NAME = "Phi-4"
+
 # 模型和tokenizer
 def load_model(model_name):
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
@@ -108,11 +110,7 @@ def detect_privacy_llm(input_texts, tokenizer, model, model_name):
         prompts = [make_prompt_llama_1B(text)]
 
         # max_output_length
-        max_output_length = 10
-        if "Qwen3" in model_name:
-            max_output_length = 100
-        if "70B" in model_name:
-            max_output_length = 4096
+        max_output_length = 100
 
         # 批处理编码
         inputs = tokenizer(prompts, return_tensors="pt", padding=True, padding_side='left', truncation=True).to(model.device)
@@ -124,7 +122,10 @@ def detect_privacy_llm(input_texts, tokenizer, model, model_name):
         # 解码每个样本的输出
         for j, output in enumerate(outputs):
             # 获取新生成的token
-            input_length = inputs["input_ids"].shape[1] if len(inputs["input_ids"].shape) > 1 else inputs["input_ids"].shape[0]
+            if MODEL_NAME != "Phi-4":
+                input_length = inputs["input_ids"].shape[1] if len(inputs["input_ids"].shape) > 1 else inputs["input_ids"].shape[0]
+            else:
+                input_length = 0
             result = tokenizer.decode(output[input_length:], skip_special_tokens=True).strip()
 
             # 尝试解析成 float
@@ -132,6 +133,7 @@ def detect_privacy_llm(input_texts, tokenizer, model, model_name):
                 score = [float(num) for num in re.findall(r'[-+]?\d*\.\d+|\d+', result)]
                 score = max(0.0, min(1.0, score[0]))
             except:
+                print(f"No score in result{result}")
                 score = 0.5
             scores.append(score)
 
@@ -186,17 +188,25 @@ def worker(rank, model_name, texts, labels, save_dir):
 
 if __name__ == "__main__":
     mp.set_start_method("spawn", force=True)
-    SAMPLE_N = 200
+    SAMPLE_N = 50000
 
     data_list = [
-        "/dcar-vepfs-trans-models/Datasets/english_pii_43k.jsonl",
-        # "/dcar-vepfs-trans-models/Datasets/french_pii_62k.jsonl",
-        # "/dcar-vepfs-trans-models/Datasets/german_pii_52k.jsonl",
-        # "/dcar-vepfs-trans-models/Datasets/italian_pii_50k.jsonl"
+        # "/root/code/sglang-security/results/english_pii_43k-after_level_2.jsonl",
+        # "/root/code/sglang-security/results/french_pii_62k-after_level_2.jsonl",
+        # "/root/code/sglang-security/results/german_pii_52k-after_level_2.jsonl",
+        # "/root/code/sglang-security/results/italian_pii_50k-after_level_2.jsonl"
+        "./results/english_non_17.jsonl"
     ]
 
     for data_path in data_list:
-        texts, labels = load_jsonl_dataset(data_path, sample_n=SAMPLE_N)
+        # texts, labels = load_jsonl_dataset(data_path, sample_n=SAMPLE_N)
+        texts = []
+        labels = []
+        with open(data_path, "r") as fr:
+            lines = fr.readlines()
+            for line in lines:
+                texts.append(line)
+                labels.append(True)
         # 检查字段名
         print(texts[0])
         print(labels[1])
@@ -211,10 +221,10 @@ if __name__ == "__main__":
             # "/dcar-vepfs-trans-models/Qwen3-8B",
             # "/dcar-vepfs-trans-models/Qwen3-32B",
             # "/dcar-vepfs-trans-models/Qwen3-30B-A3B",
-            # "/dcar-vepfs-trans-models/Llama-3.2-1B",
+            "/dcar-vepfs-trans-models/Llama-3.2-1B",
             # "/dcar-vepfs-trans-models/Llama-3.2-3B",
             # "/dcar-vepfs-trans-models/Llama-3.1-8B",
-            "/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct",
+            # "/dcar-vepfs-trans-models/Phi-4",
         ]
 
         device_map = {

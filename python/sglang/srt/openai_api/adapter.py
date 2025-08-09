@@ -1067,6 +1067,8 @@ def v1_chat_generate_request(
                     prompt_ids += encoded
                 if is_multimodal:
                     prompt = tokenizer_manager.tokenizer.decode(prompt_ids)
+                else:
+                    prompt = tokenizer_manager.tokenizer.decode(prompt_ids)
                 stop = request.stop
                 image_data = None
                 audio_data = None
@@ -1146,7 +1148,7 @@ def v1_chat_generate_request(
             "no_stop_trim": request.no_stop_trim,
             "ignore_eos": request.ignore_eos,
             "skip_special_tokens": request.skip_special_tokens,
-            "user_id": request.user_id, ## add by kexinchu 
+            "user_id": request.user_id, ## add by kexinchu
         }
 
         if request.response_format and request.response_format.type == "json_schema":
@@ -1214,6 +1216,7 @@ def v1_chat_generate_request(
             else:
                 prompt_kwargs = {"input_ids": input_ids}
 
+    prompt_kwargs["text"] = prompts[0]
     adapted_request = GenerateReqInput(
         **prompt_kwargs,
         image_data=image_data_list,

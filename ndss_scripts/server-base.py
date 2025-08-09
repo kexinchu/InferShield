@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=0,4,7
+CUDA_VISIBLE_DEVICES=4,5,6,7
 import sys
 import os
 import subprocess
@@ -16,21 +16,29 @@ if __name__ == "__main__":
     print(f"Loading model: {model_name}")
 
     # Use the existing launch_server module
-    # sys.executable, "python/sglang/launch_server.py",
     cmd = [
-        sys.executable, "python/sglang/launch_server.py",
+        sys.executable, "-m", "sglang.launch_server",
         "--model-path", local_path[model_name],
         "--host", "127.0.0.1",
         "--port", "8080",
         "--max-running-requests", "32",
         "--max-total-tokens", "40960",
         "--dtype", "bfloat16",
+        "--mem-fraction-static", "0.95",
         "--trust-remote-code",
-        "--attention-backend", "torch_native",
+        "--attention-backend", "flashinfer",
         "--sampling-backend", "pytorch",
         "--disable-cuda-graph",
         "--disable-cuda-graph-padding",
-        "--tp-size", "3"
+        "--tp-size", "4"
+        "--chunked-prefill-size", "8192",
+        "--context-length", "65536",
+        "--quantization", "fp8",
+        "--enable-torch-compile",
+        "--cuda-graph-max-bs", "64",
+        "--torch-compile-max-bs", "32",
+        "--page-size", "16",
+        "--allow-auto-truncate",
     ]
 
     print("Starting HTTP server on port 8080...")

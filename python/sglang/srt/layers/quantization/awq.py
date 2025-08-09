@@ -93,11 +93,22 @@ class AWQConfig(QuantizationConfig):
     def get_quant_method(
         self, layer: torch.nn.Module, prefix: str
     ) -> Optional["LinearMethodBase"]:
-
+        from sglang.srt.layers.moe.fused_moe_triton import FusedMoE
         if isinstance(layer, LinearBase):
             if is_layer_skipped_awq(prefix, self.modules_to_not_convert):
                 return UnquantizedLinearMethod()
             return AWQLinearMethod(self)
+        elif isinstance(layer, FusedMoE):
+            # Lazy import to avoid circular import.
+            from .moe_wna16 import MoeWNA16Config
+            config = {
+                "quant_method": "awq",
+                "bits": self.weight_bits,
+                "group_size": self.group_size,
+                "zero_point": self.zero_point,
+                "lm_head": False,
+            }
+            return MoeWNA16Config.from_config(config).get_quant_method(layer, prefix)
         return None
 
 

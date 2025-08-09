@@ -49,7 +49,7 @@ class TreeNode:
         # add by kexinchu --- start
         self.private = True  # default is private node
         self.need_check_privacy = True
-        self.owner_id = None
+        self.owner_id = 0
         self.u_cnt_l = set() # the hit user_id list
         self.hit_pre = 0
         self.u_cnt_pre = 0 # 上一个time_window的hit_user_count

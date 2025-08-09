@@ -105,7 +105,7 @@ def detect_privacy_llm(input_texts, tokenizer, model, model_name):
     latencies = []
     for i in range(0, len(input_texts)):
         text = input_texts[i]
-        prompts = [make_prompt_llama_1B(text)]
+        prompts = [text]
 
         # max_output_length
         max_output_length = 10
@@ -177,13 +177,14 @@ if __name__ == "__main__":
     model_names = [
         # "/dcar-vepfs-trans-models/Qwen3-0.6B",
         # "/dcar-vepfs-trans-models/Qwen3-4B",
-        # "/dcar-vepfs-trans-models/Qwen3-8B",
-        # "/dcar-vepfs-trans-models/Qwen3-32B",
-        # "/dcar-vepfs-trans-models/Qwen3-30B-A3B",
+        "/dcar-vepfs-trans-models/Qwen3-8B",
+        "/dcar-vepfs-trans-models/Qwen3-32B",
+        "/dcar-vepfs-trans-models/Qwen3-30B-A3B",
         "/dcar-vepfs-trans-models/Llama-3.2-1B",
         # "/dcar-vepfs-trans-models/Llama-3.2-3B",
         # "/dcar-vepfs-trans-models/Llama-3.1-8B",
         # "/dcar-vepfs-trans-models/Llama-3.3-70B-Instruct",
+        "/dcar-vepfs-trans-models/Phi-4",
     ]
 
     device_map = {
@@ -193,6 +194,8 @@ if __name__ == "__main__":
     }
 
     for rank, mdl in enumerate(model_names):
+        if mdl != "/dcar-vepfs-trans-models/Phi-4":
+            continue
         if mdl in device_map:
             rank = device_map[mdl]
         else:
@@ -213,8 +216,6 @@ if __name__ == "__main__":
         model.eval()
 
         for length in [512, 1024, 2048, 4096, 8192, 16384, 32768, 65536]:
-            if length < 32768:
-                continue
             texts = shuffle_and_assign_requests(SAMPLE_N, length)
             # 检查字段名
             print(f"length: {length}")

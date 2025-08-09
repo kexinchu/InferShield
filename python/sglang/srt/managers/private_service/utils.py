@@ -14,13 +14,19 @@ def load_jsonl_dataset(path, sample_n=1000, seed=42):
     labels = []
     for line in lines:
         item = json.loads(line)
-        texts.append(item["source_text"])
+
         # 判断是否有PII
-        bio_labels = item["mbert_bio_labels"]
-        if isinstance(bio_labels, str):
-            bio_labels = eval(bio_labels)  # 兼容字符串格式
-        label = 1 if any(l != "O" for l in bio_labels) else 0
-        labels.append(label)
+        if "new_prompts" in path:
+            label = item["label"]
+            texts.append(item["rewritten"])
+            labels.append(item["label"])
+        else:
+            texts.append(item["source_text"])
+            bio_labels = item["mbert_bio_labels"]
+            if isinstance(bio_labels, str):
+                bio_labels = eval(bio_labels)  # 兼容字符串格式
+            label = 1 if any(l != "O" for l in bio_labels) else 0
+            labels.append(label)
     return texts, labels
 
 def make_prompt(user_input):

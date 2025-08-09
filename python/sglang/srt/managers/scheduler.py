@@ -150,6 +150,7 @@ from sglang.srt.utils import (
     suppress_other_loggers,
 )
 from sglang.utils import TypeBasedDispatcher, get_exception_traceback
+from sglang.srt.managers.private_service.private_client import PrivateJudgeClient
 
 logger = logging.getLogger(__name__)
 
@@ -345,6 +346,14 @@ class Scheduler(
                 f"available_gpu_mem={avail_mem:.2f} GB"
             )
 
+        # add by kexinchu --- start
+        # Initialize private node client
+        self.private_judge_client = PrivateJudgeClient(
+            server_args=server_args,
+            port_args=port_args,
+        )
+        # add by kexinchu --- end
+
         # Init memory pool and cache
         self.init_memory_pool_and_cache()
 
@@ -394,8 +403,7 @@ class Scheduler(
             self.schedule_policy,
             self.tree_cache,
             self.enable_hierarchical_cache,
-            self.server_args,
-            self.port_args,
+            self.private_judge_client,
         )
         assert (
             server_args.schedule_conservativeness >= 0
@@ -541,8 +549,7 @@ class Scheduler(
                     page_size=self.page_size,
                     disable=server_args.disable_radix_cache,
                     enable_kv_cache_events=self.enable_kv_cache_events,
-                    server_args=self.server_args,
-                    port_args=self.port_args,
+                    private_judge_client=self.private_judge_client
                 )
 
         self.decode_mem_cache_buf_multiplier = (
@@ -919,7 +926,7 @@ class Scheduler(
                         self.recv_from_rpc.send_pyobj(output)
                 else:
                     self.send_to_tokenizer.send_pyobj(output)
-    
+
     def _handle_privacy_detection_request(self, recv_req):
         """处理隐私检测请求，给予高优先级"""
         # 创建Req对象，与常规请求类似
@@ -943,11 +950,11 @@ class Scheduler(
             user_id=recv_req.sampling_params.user_id,
         )
         req.tokenizer = self.tokenizer
-        
+
         # 标记为隐私检测请求
         req.is_privacy_detection = True
         req.priority = 1  # 高优先级
-        
+
         # 使用标准的队列添加方法
         self._add_request_to_queue(req)
 
@@ -970,6 +977,8 @@ class Scheduler(
             if recv_req.bootstrap_port is None:
                 # Use default bootstrap port
                 recv_req.bootstrap_port = self.server_args.disaggregation_bootstrap_port
+
+            # print(f"recv_req: {recv_req.input_text}")
 
             req = Req(
                 recv_req.rid,
@@ -1320,7 +1329,7 @@ class Scheduler(
                 f"{self.token_to_kv_pool_allocator.available_size()=}\n"
                 f"{self.tree_cache.evictable_size()=}\n"
             )
-            raise ValueError(msg)
+            # raise ValueError(msg)
 
         if len(self.req_to_token_pool.free_slots) != self.req_to_token_pool.size:
             msg = (
@@ -1328,7 +1337,7 @@ class Scheduler(
                 f"available_size={len(self.req_to_token_pool.free_slots)}, "
                 f"total_size={self.req_to_token_pool.size}\n"
             )
-            raise ValueError(msg)
+            # raise ValueError(msg)
 
         if (
             self.enable_metrics

@@ -608,7 +608,7 @@ class Req:
         self.tmp_end_idx: int = -1
         self.metadata_buffer_index: int = -1
         self.user_id: str = sampling_params.user_id # add by kexinchu
-        
+
         # For privacy detection requests
         self.is_privacy_detection: bool = False
         self.priority: int = 0  # 0 = normal, 1 = high priority
@@ -933,25 +933,32 @@ class ScheduleBatch(ScheduleBatchDisaggregationDecodeMixin):
         return req_pool_indices
 
     def alloc_token_slots(self, num_tokens: int, backup_state: bool = False):
-        if self.token_to_kv_pool_allocator.available_size() < num_tokens:
+        if self.token_to_kv_pool_allocator.available_size() < num_tokens + 2000: # or self.token_to_kv_pool_allocator.available_size() + self.tree_cache.evictable_size() > 40960
             if self.tree_cache is not None:
-                self.tree_cache.evict(num_tokens)
+                self.tree_cache.evict(num_tokens + 2000)
 
         if backup_state:
             state = self.token_to_kv_pool_allocator.backup_state()
 
         out_cache_loc = self.token_to_kv_pool_allocator.alloc(num_tokens)
         if out_cache_loc is None:
-            phase_str = "Prefill" if self.forward_mode.is_extend() else "Decode"
-            error_msg = (
-                f"{phase_str} out of memory. Try to lower your batch size.\n"
-                f"Try to allocate {num_tokens} tokens.\n"
-                f"Available tokens: {self.token_to_kv_pool_allocator.available_size() + self.tree_cache.evictable_size()}\n"
-            )
-            logger.error(error_msg)
-            if self.tree_cache is not None:
-                self.tree_cache.pretty_print()
-            raise RuntimeError(error_msg)
+            max_try = 0
+            while out_cache_loc is None and max_try < 10:
+                self.tree_cache.evict(num_tokens)
+                out_cache_loc = self.token_to_kv_pool_allocator.alloc(num_tokens)
+                max_try += 1
+            if out_cache_loc is None:
+                phase_str = "Prefill" if self.forward_mode.is_extend() else "Decode"
+                error_msg = (
+                    f"{phase_str} out of memory. Try to lower your batch size.\n"
+                    f"Try to allocate {num_tokens} tokens.\n"
+                    f"Available tokens: {self.token_to_kv_pool_allocator.available_size()}\n"
+                    f"Total tokens: {self.token_to_kv_pool_allocator.available_size() + self.tree_cache.evictable_size()}\n"
+                )
+                logger.error(error_msg)
+                if self.tree_cache is not None:
+                    self.tree_cache.pretty_print()
+                # raise RuntimeError(error_msg)
 
         if backup_state:
             return out_cache_loc, state

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from zmq import NULL
+
 """
 Copyright 2023-2024 SGLang Team
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,18 +42,22 @@ if TYPE_CHECKING:
 
 # add by kexinchu --- start
 from sglang import get_epoch
-from sglang.srt.server_args import ServerArgs, PortArgs
+# from sglang.srt.server_args import ServerArgs, PortArgs
 from sglang.srt.managers.private_service.private_client import PrivateJudgeClient
 from sglang.srt.mem_cache.tree_node import TreeNode
 
-THRESHOLD = 10 
+THRESHOLD = 10
 # add by kexinchu --- end
 
 def _key_match_page_size1(key0: List, key1: List):
     i = 0
+    num_miss = 0
     for k0, k1 in zip(key0, key1):
         if k0 != k1:
-            break
+            if num_miss > 10:
+                break
+            else:
+                num_miss += 1
         i += 1
     return i
 
@@ -74,10 +80,9 @@ class RadixCache(BasePrefixCache):
         req_to_token_pool: ReqToTokenPool,
         token_to_kv_pool_allocator: TokenToKVPoolAllocator,
         page_size: int,
+        private_judge_client: PrivateJudgeClient,
         disable: bool = False,
         enable_kv_cache_events: bool = False,
-        server_args: Optional[ServerArgs] = None,   # add by kexinchu
-        port_args: Optional[PortArgs] = None,       # add by kexinchu
     ):
         self.req_to_token_pool = req_to_token_pool
         self.token_to_kv_pool_allocator = token_to_kv_pool_allocator
@@ -86,13 +91,7 @@ class RadixCache(BasePrefixCache):
         self.enable_kv_cache_events = enable_kv_cache_events
         self.kv_event_queue = []
 
-        # add by kexinchu --- start
-        # Initialize private node client
-        self.private_judge_client = PrivateJudgeClient(
-            server_args=server_args,
-            port_args=port_args,
-        )
-        # add by kexinchu --- end
+        self.private_judge_client = private_judge_client
 
         if self.token_to_kv_pool_allocator:
             self.device = self.token_to_kv_pool_allocator.device
@@ -182,9 +181,10 @@ class RadixCache(BasePrefixCache):
             page_aligned_kv_indices = kv_indices.clone()
 
         # Radix Cache takes one ref in memory pool
+        # print(f"req.origin_input_text: {req.origin_input_text}")
         new_prefix_len = self.insert(
-            token_ids[:page_aligned_len], 
-            page_aligned_kv_indices, 
+            token_ids[:page_aligned_len],
+            page_aligned_kv_indices,
             req.origin_input_text,
             user_id=req.user_id
         )
@@ -215,7 +215,7 @@ class RadixCache(BasePrefixCache):
         page_aligned_token_ids = token_ids[:page_aligned_len]
 
         # Radix Cache takes one ref in memory pool
-        new_prefix_len = self.insert(page_aligned_token_ids, page_aligned_kv_indices, user_id=req.user_id)
+        new_prefix_len = self.insert(page_aligned_token_ids, page_aligned_kv_indices, req.origin_input_text, user_id=req.user_id)
         self.token_to_kv_pool_allocator.free(
             kv_indices[len(req.prefix_indices) : new_prefix_len]
         )
@@ -247,6 +247,7 @@ class RadixCache(BasePrefixCache):
         return self._total_size_helper()
 
     def evict(self, num_tokens: int):
+        # print(f"start evict KV cache: {self.evictable_size_}; free: {num_tokens}")
         if self.disable:
             return
 
@@ -257,12 +258,11 @@ class RadixCache(BasePrefixCache):
         num_evicted = 0
         while num_evicted < num_tokens and len(leaves):
             x = heapq.heappop(leaves)
-
             if x == self.root_node:
                 break
             if x.lock_ref > 0:
                 continue
-            
+
             # add by kexinchu --- start
             if x.after_merged:
                 self.token_to_kv_pool_allocator.free(x.value.merged_value[-1])
@@ -344,8 +344,12 @@ class RadixCache(BasePrefixCache):
                     break
                 # child.last_access_time = time.monotonic()
                 prefix_len = self.key_match_fn(child.key, key)
+                # print(f"child_key: {child.key[:10]}; key: {key[:10]}; prefix_len: {prefix_len}; prompt: {child.prompt[:100]}")
                 if prefix_len < len(child.key):
                     # private node, 不尝试split <= 因为有node合并
+                    new_node = self._split_node(child.key, child, prefix_len)
+                    value.append(new_node.value)
+                    node = new_node
                     break
                 else:
                     value.append(child.value)
@@ -384,7 +388,7 @@ class RadixCache(BasePrefixCache):
             # add by kexinchu --- end
 
         return value, node
-    
+
     # add by kexinchu --- start
     def _free_with_entropy(self, node: TreeNode):
         # 计算分布熵
@@ -416,22 +420,21 @@ class RadixCache(BasePrefixCache):
         new_node.key = child.key[:split_len]
         new_node.value = child.value[:split_len]
         # add by kexinchu --- start
-        new_node.owner_id = child.owner_id 
+        new_node.owner_id = child.owner_id
         if not child.need_check_privacy:
             new_node.private = child.private # 保留原本node的private状态
         else:
             # Update privacy status for the new node
-            try:
-                result = self.private_judge_client.update_privacy(
-                    node_id=new_node,
-                    prompt = child.key,
-                )
-            except Exception as e:
-                print(f"Error updating node privacy: {e}")
+            new_node.private = child.private
+            # result = self.private_judge_client.update_privacy(
+            #     node_id=new_node,
+            #     prompt = child.key,
+            # )
         new_node.u_cnt_l = child.u_cnt_l
         new_node.hit_pre = child.hit_pre
         new_node.u_cnt_pre = child.u_cnt_pre
         new_node.hit_count = child.hit_count
+        new_node.prompt = child.prompt
         # add by kexinchu --- end
         child.parent = new_node
         child.key = child.key[split_len:]
@@ -469,7 +472,7 @@ class RadixCache(BasePrefixCache):
         total_prefix_length = 0
         # step2, push key/value into merged_key/merged_value
         leaf_node = node
-        for i in range(len(node.merged_key)):            
+        for i in range(len(node.merged_key)):
             prefix_len = self.key_match_fn(node.merged_key[i], key)
             total_prefix_length += prefix_len
             key = key[prefix_len:]
@@ -491,7 +494,7 @@ class RadixCache(BasePrefixCache):
             node.children[self.get_child_key_fn(key)] = new_node
             self.evictable_size_ += len(value)
             self._record_store_event(new_node)
-        
+
         return total_prefix_length
     # add by kexinchu --- end
 
@@ -507,12 +510,12 @@ class RadixCache(BasePrefixCache):
         while len(key) > 0 and child_key in node.children.keys():
             # add by kexinchu --- start
             # 1, private node, 检查user是否匹配
-            if node.private and user_id != node.owner_id:
+            if node.private and user_id != str(node.owner_id):
                 break
             # 2，如果是private node，尝试合并tree
-            if node.is_sub_root or (node.private and not node.need_check_privacy):
-                total_prefix_length += self._try_merge_subtree_when_insert(node, key, value, user_id)
-                break
+            # if node.is_sub_root or (node.private and not node.need_check_privacy):
+            #     total_prefix_length += self._try_merge_subtree_when_insert(node, key, value, user_id)
+            #     break
             # add by kexinchu --- end
             node = node.children[child_key]
             # node.last_access_time = time.monotonic()
@@ -530,22 +533,34 @@ class RadixCache(BasePrefixCache):
                 child_key = self.get_child_key_fn(key)
 
         if len(key):
-            new_node = TreeNode()
-            new_node.parent = node
-            new_node.key = key
-            new_node.value = value
-            # add by kexinchu --- start
-            new_node.prompt = prompt
-            self.private_judge_client.update_privacy(
-                node = new_node,
-                context = prompt,
-                prompt = prompt,
-            )
-            new_node.owner_id = user_id
-            # add by kexinchu --- end
-            node.children[child_key] = new_node
-            self.evictable_size_ += len(value)
-            self._record_store_event(new_node)
+            NUM_ = 1024
+            while len(value) > 0:
+                new_node = TreeNode()
+                new_node.parent = node
+                new_node.key = key[:NUM_]
+                new_node.value = value[:NUM_]
+                # add by kexinchu --- start
+                new_node.prompt = prompt
+                self.private_judge_client.update_privacy(
+                    node = new_node,
+                    context = prompt,
+                    prompt = prompt,
+                )
+                # if "score" in prompt and len(value) >= NUM_:
+                #     new_node.need_check_privacy = False
+                #     new_node.private = False
+                # new_node.need_check_privacy = False
+                # new_node.private = False
+                new_node.owner_id = user_id
+                # add by kexinchu --- end
+                node.children[child_key] = new_node
+                self.evictable_size_ += min(NUM_, len(value))
+                self._record_store_event(new_node)
+                node = new_node
+                key = key[NUM_:]
+                value = value[NUM_:]
+                if len(key):
+                    child_key = self.get_child_key_fn(key)
         return total_prefix_length
 
     def _print_helper(self, node: TreeNode, indent: int):

@@ -6,10 +6,11 @@ import queue
 import time
 import random
 import sys
+import string
 import multiprocessing as mp
 from load_requests import load_jsonl_dataset
 
-SERVER_URL = "http://127.0.0.1:8080/v1/chat/completions"
+SERVER_URL = "http://127.0.0.1:8082/v1/chat/completions"
 headers = {"Content-Type": "application/json"}
 
 # === 参数 ===
@@ -24,11 +25,13 @@ thread_session_ids = []
 # === 新增统计信息 ===
 thread_latencies = [[] for _ in range(NUM_THREADS)]  # 每个线程独立的延迟记录列表
 
-def shuffle_and_assign_requests(user_requests, num_threads):
+def shuffle_and_assign_requests(num_request, num_threads, length):
     """将requests打乱后，均匀分配到每个thread的queue"""
-    random.shuffle(user_requests)
     queues = [queue.Queue() for _ in range(num_threads)]
-    for idx, req in enumerate(user_requests):
+    for idx in range(num_request):
+        # 生成指定长度的随机prompt - 使用字母、数字和常见标点符号
+        chars = string.ascii_letters + string.digits + " .,!?;:"
+        req = ''.join(random.choice(chars) for _ in range(length))
         queues[idx % num_threads].put(req)
     return queues
 
@@ -48,7 +51,7 @@ def worker(thread_id, user_id, req_queue, qps, model_name):
                 {"role": "user", "content": request_text}
             ],
             "temperature": 0.0,
-            "max_tokens": 1,
+            "max_tokens": 10,
             "user_id": user_id,
         }
         start = time.perf_counter()
@@ -58,10 +61,10 @@ def worker(thread_id, user_id, req_queue, qps, model_name):
         if response.status_code == 200:
             result = response.json()
             content = result["choices"][0]["message"]["content"]
-            print(content)
-            thread_latencies[thread_id].append(end - start)
+            # print(content)
+            thread_latencies[thread_id].append((end - start) * 1000)
         else:
-            continue
+            print(response)
 
         # 控制qps
         time.sleep(interval)
@@ -94,43 +97,36 @@ def report_latency():
 
 if __name__ == "__main__":
     mp.set_start_method('spawn', force=True)
-    file_name = "/dcar-vepfs-trans-models/Datasets/english_pii_43k.jsonl"
-    if len(sys.argv) > 1:
-        file_name = sys.argv[1]
-
     print("Loading requests...")
-    SAMPLE_N = 2000
-    user_requests, labels = load_jsonl_dataset(
-        file_name,
-        sample_n=SAMPLE_N
-    )
-    sampled_requests = user_requests[:SAMPLE_N]
-    random.shuffle(sampled_requests)
-    # Take first 1000 requests
-    prompts = sampled_requests
+    SAMPLE_N = 500
+    if len(sys.argv) > 1:
+        SERVER_URL = "http://" + sys.argv[1] + "/v1/chat/completions"
 
     # 1. 打乱并分配requests到queues
-    thread_queues = shuffle_and_assign_requests(prompts, NUM_THREADS)
+    for length in [256, 512, 1024, 2048, 4096, 8192, 16384, 32758, 65536]:
+        print(f"length: {length}")
+        thread_latencies = [[] for _ in range(NUM_THREADS)]
+        thread_queues = shuffle_and_assign_requests(SAMPLE_N, NUM_THREADS, length)
 
-    # 2. 为每个线程分配一个session_id
-    if not ISOLATION_MODE:
-        thread_session_ids = [str(1) for _ in range(NUM_THREADS)]
-    else:
-        thread_session_ids = [str(uuid.uuid4()) for _ in range(NUM_THREADS)]
+        # 2. 为每个线程分配一个session_id
+        if not ISOLATION_MODE:
+            thread_session_ids = [str(1) for _ in range(NUM_THREADS)]
+        else:
+            thread_session_ids = [str(uuid.uuid4()) for _ in range(NUM_THREADS)]
 
-    # 3. 启动线程
-    threads = []
-    for i in range(NUM_THREADS):
-        t = threading.Thread(
-            target=worker,
-            args=(i, thread_session_ids[i], thread_queues[i], QPS_PER_THREAD, "llama3-70b")
-        )
-        t.start()
-        threads.append(t)
+        # 3. 启动线程
+        threads = []
+        for i in range(NUM_THREADS):
+            t = threading.Thread(
+                target=worker,
+                args=(i, thread_session_ids[i], thread_queues[i], QPS_PER_THREAD, "llama3-70b")
+            )
+            t.start()
+            threads.append(t)
 
-    # 4. 等待所有线程完成
-    for t in threads:
-        t.join()
+        # 4. 等待所有线程完成
+        for t in threads:
+            t.join()
 
-    # 5. 汇总延迟统计
-    report_latency()
+        # 5. 汇总延迟统计
+        report_latency()

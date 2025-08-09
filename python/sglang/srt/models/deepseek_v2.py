@@ -2104,8 +2104,10 @@ class DeepseekV2ForCausalLM(nn.Module):
                         ):
                             q_a_proj_weight = cached_a_proj[q_a_proj_name]
                             kv_a_proj_weight = cached_a_proj[kv_a_proj_name]
+                            # for idx, w in enumerate([q_a_proj_weight, kv_a_proj_weight]):
+                            #     print(f"[DEBUG] expert #{idx} weight shape: {tuple(w.shape)}")
                             fused_weight = torch.cat(
-                                [q_a_proj_weight, kv_a_proj_weight], dim=0
+                                [q_a_proj_weight, kv_a_proj_weight], dim=1
                             )
 
                             param_name = name.replace(

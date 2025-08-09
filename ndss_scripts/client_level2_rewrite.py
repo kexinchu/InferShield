@@ -1,20 +1,32 @@
-#!/usr/bin/env python3
-"""
-Usage:
-python3 benchmark_seq_api.py --model_name doubao-1-5-pro-32k-250115
-
-python3 benchmark_seq_api.py --model_name deepseek-r1-250528
-"""
-import os
-import re
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-from openai import OpenAI
-import argparse
+import requests
+import uuid
+import json
+import threading
+import queue
 import time
+import random
+import sys
+import re
 import numpy as np
+import multiprocessing as mp
 from load_requests import load_jsonl_dataset
 
-# 构造 prompt
+SERVER_URL = "http://127.0.0.1:8081/v1/chat/completions"
+headers = {"Content-Type": "application/json"}
+
+# === 参数 ===
+NUM_THREADS = 1          # 线程数
+QPS_PER_THREAD = 1       # 每个线程的QPS
+ISOLATION_MODE = True
+
+# === 每个线程对应一个Queue和Session ID ===
+thread_queues = []
+thread_session_ids = []
+
+# === 新增统计信息 ===
+thread_latencies = [[] for _ in range(NUM_THREADS)]  # 每个线程独立的延迟记录列表
+thread_scores = [[] for _ in range(NUM_THREADS)]
+
 def make_prompt_llama_1B(user_input):
     return f"""You are a privacy classification assistant.
 
@@ -65,8 +77,6 @@ Answer: 0.02
 
 Input: "James recently moved to 456 Oak Avenue."
 Answer: 0.96
-
-## Now analyze the input below:
 """
 
 def make_prompt_deepseek(user_input: str) -> str:
@@ -154,107 +164,103 @@ Answer: {{"reasoning":"Exact GPS coordinates → PII","score":0.97}}
 
 Input: "Invoice #INV-2024-001"
 Answer: {{"reasoning":"Invoice number not tied to person without context → no PII","score":0.12}}
-
-Now analyze the user's input:
 """
     return prompt
 
-# 模型处理
-def detect_privacy_llm(client: OpenAI, input_texts, model_name):
-    """
-    发送单个流式请求，返回包含时间戳和 token 统计的字典。
-    字段：
-      start_ts, first_chunk, chunk_ts_list, end_ts,
-      prompt_tokens, total_tokens, completion_tokens
-    """
-    scores = []
-    latencies = []
-    for i in range(0, len(input_texts)):
-        text = input_texts[i]
-        system_prompt = make_prompt_deepseek(text)
+def shuffle_and_assign_requests(user_requests, labels, num_threads):
+    """将requests打乱后，均匀分配到每个thread的queue"""
+    random.shuffle(user_requests)
+    queues = [queue.Queue() for _ in range(num_threads)]
+    labels_q = [queue.Queue() for _ in range(num_threads)]
+    for idx, req in enumerate(user_requests):
+        queues[idx % num_threads].put(req)
+        labels_q[idx % num_threads].put(labels[idx])
+    return queues, labels_q
 
-        payload = {
-            "model": model_name,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": text}
-            ],
-        }
-
-        start = time.perf_counter()
-        stream = client.chat.completions.create(
-            model=payload["model"],
-            messages=payload["messages"],
-            stream=False,
-            max_tokens=4096
-        )
-        latencies.append((time.perf_counter() - start) * 1000)
-
-        result = stream.choices[0].message.content.strip()
-        # 尝试解析成 float
-        try:
-            score = [float(num) for num in re.findall(r'[-+]?\d*\.\d+|\d+', result)]
-            score = max(0.0, min(1.0, score[0]))
-        except:
-            # print(f"No score in result: {result}")
-            # break
-            score = 0.5
-        scores.append(score)
-
-    return scores, latencies
-
-# ---------- 每个子进程的工作 ----------
-def worker(client, model_name, texts, labels, save_dir):
-    scores, latencies = detect_privacy_llm(client, texts, model_name)
-
-    # 写结果
-    os.makedirs(save_dir, exist_ok=True)
-    fname = os.path.join(save_dir, f"res_file-{model_name.split('/')[-1]}.txt")
+def worker(thread_id, user_id, req_queue, qps, labels, fname):
+    """每个线程的逻辑"""
+    interval = 1.0 / qps  # 控制速率
     with open(fname, "w") as f:
-        for idx, score in enumerate(scores):
-            f.write(f"Source:{texts[idx]}\tpredict:{score}\tlabel:{labels[idx]}\n")
+        while True:
+            try:
+                request_text = req_queue.get(timeout=5)
+                label = labels.get(timeout=5)
+            except queue.Empty:
+                print(f"[Thread {thread_id}] No more requests. Exiting.")
+                break
+            system_text = make_prompt_llama_1B(request_text)
 
-    # 统计指标
-    preds = np.array([1 if s >= 0.7 else 0 for s in scores])
-    labels_np = np.array(labels)
-    acc = (preds == labels_np).mean()
+            payload = {
+                "model": "llama3-1b",
+                "messages": [
+                    {"role": "system", "content": system_text},
+                    {"role": "user", "content": request_text}
+                ],
+                "temperature": 0.0,
+                "max_tokens": 100,
+                "user_id": user_id,
+            }
+            response = requests.post(SERVER_URL, headers=headers, data=json.dumps(payload))
 
-    # 打印
-    print(f"{model_name}  Acc: {acc:.4f}")
-    if latencies:
-        avg_latency = sum(latencies) / len(latencies)
-        sorted_latencies = sorted(latencies)
-        p50_idx = int(0.5 * len(sorted_latencies))
-        p95_idx = int(0.95 * len(sorted_latencies))
-        p99_idx = int(0.99 * len(sorted_latencies))
-        p50_latency = sorted_latencies[p50_idx]
-        p95_latency = sorted_latencies[p95_idx]
-        p99_latency = sorted_latencies[p99_idx]
-        print(f"{model_name} Average Latency: {avg_latency:.2f} ms")
-        print(f"{model_name} 50th Percentile Latency: {p50_latency:.2f} ms")
-        print(f"{model_name} 95th Percentile Latency: {p95_latency:.2f} ms")
-        print(f"{model_name} 99th Percentile Latency: {p99_latency:.2f} ms")
+            if response.status_code == 200:
+                result = response.json()
+                content = result["choices"][0]["message"]["content"]
+                # 尝试解析成 float
+                try:
+                    score = [float(num) for num in re.findall(r'[-+]?\d*\.\d+|\d+', content)]
+                    score = max(0.0, min(1.0, score[0]))
+                except:
+                    score = 0.5
+            else:
+                score = 0.5
 
+            # 记录不确定的部分
+            if score < 0.7 and score > 0.3:
+                tmp = {
+                    "prompt": request_text,
+                    "label": label
+                }
+                f.write(json.dumps(tmp, ensure_ascii=False) + "\n")
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--model_name", type=str, required=True, help="models name")
-    args = parser.parse_args()
+            # 控制qps
+            time.sleep(interval)
 
-    client = OpenAI(
-        base_url="https://ark.cn-beijing.volces.com/api/v3",
-        api_key="efb7ff5c-5dd4-446b-b73d-aa5910913f7c"
-    )
-
-    # 简单的提示列表，可根据实际情况替换
-    SAMPLE_N = 200
-    texts, labels = load_jsonl_dataset("/dcar-vepfs-trans-models/Datasets/italian_pii_50k.jsonl", sample_n=SAMPLE_N)
-    # 检查字段名
-    print(texts[0])
-    print(labels[0])
-
-    worker(client, args.model_name, texts, labels, "./results/pii-detection")
 
 
 if __name__ == "__main__":
-    main()
+    mp.set_start_method('spawn', force=True)
+    data_list = [
+        "/root/code/sglang-security/results/english_pii_43k-after_level_1.jsonl",
+        "/root/code/sglang-security/results/french_pii_62k-after_level_1.jsonl",
+        "/root/code/sglang-security/results/german_pii_52k-after_level_1.jsonl",
+        "/root/code/sglang-security/results/italian_pii_50k-after_level_1.jsonl"
+    ]
+    for file_name in data_list:
+        if len(sys.argv) > 1:
+            SERVER_URL = "http://" + sys.argv[1] + "/v1/chat/completions"
+        print(f"Loading requests...: {file_name}")
+        SAMPLE_N = 5000
+        thread_latencies = [[] for _ in range(NUM_THREADS)]
+        user_requests, labels = load_jsonl_dataset(
+            file_name,
+            sample_n=SAMPLE_N
+        )
+        sampled_requests = user_requests[:SAMPLE_N]
+        random.shuffle(sampled_requests)
+        prompts = sampled_requests
+
+        # 1. 打乱并分配requests到queues
+        thread_queues, labels_queue = shuffle_and_assign_requests(sampled_requests, labels, NUM_THREADS)
+
+        # 2. 为每个线程分配一个session_id
+        if not ISOLATION_MODE:
+            thread_session_ids = [str(1) for _ in range(NUM_THREADS)]
+        else:
+            thread_session_ids = [str(uuid.uuid4()) for _ in range(NUM_THREADS)]
+
+
+        ori_name = file_name.split("/")[-1].split("-")[0]
+        fname = f"/root/code/sglang-security/results/{ori_name}-after_level_2.jsonl"
+
+        # 3. 启动线程
+        worker(0, thread_session_ids[0], thread_queues[0], QPS_PER_THREAD, labels_queue[0], fname)
