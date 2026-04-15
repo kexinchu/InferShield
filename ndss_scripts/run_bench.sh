@@ -13,11 +13,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "${SCRIPT_DIR}"
 
-PYTHON="/home/kec23008/miniconda3/envs/vllm_test/bin/python3"
+PYTHON="/home/kec23008/.venv/bin/python3"
 
 # ---- Config ----
-MODELS=("qwen32b" "qwen30b" "phi4")
-declare -A PORTS=(["qwen32b"]="8090" ["qwen30b"]="8091" ["phi4"]="8092")
+MODELS=("qwen32b" "qwen30b" "qwen30b-int4" "phi4")
+declare -A PORTS=(["qwen32b"]="8090" ["qwen30b"]="8094" ["qwen30b-int4"]="8093" ["phi4"]="8092")
 
 NUM_QUERIES=50
 MAX_TOKENS=128

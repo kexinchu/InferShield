@@ -30,6 +30,80 @@ import requests
 #  GPU Monitor (background thread)
 # ------------------------------------------------------------------ #
 
+# ------------------------------------------------------------------ #
+#  KV Cache Info (SGLang server endpoints)
+# ------------------------------------------------------------------ #
+
+def get_kv_cache_info(server_url: str) -> Dict:
+    """Fetch KV cache capacity from SGLang /get_server_info."""
+    info = {}
+    try:
+        r = requests.get(f"http://{server_url}/get_server_info", timeout=5)
+        if r.status_code == 200:
+            d = r.json()
+            info["max_total_num_tokens"] = d.get("max_total_num_tokens")
+            info["mem_fraction_static"] = d.get("mem_fraction_static")
+            info["context_length"] = d.get("context_length")
+            info["tp_size"] = d.get("tp_size")
+    except Exception:
+        pass
+    return info
+
+
+class KVCacheMonitor:
+    """Polls SGLang Prometheus /metrics for KV cache token usage."""
+
+    def __init__(self, server_url: str, interval: float = 1.0):
+        self.server_url = server_url
+        self.interval = interval
+        self.used_samples: List[float] = []
+        self.total_samples: List[float] = []
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+
+    def start(self):
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._stop.set()
+        if self._thread:
+            self._thread.join(timeout=5)
+
+    def _run(self):
+        url = f"http://{self.server_url}/metrics"
+        while not self._stop.is_set():
+            try:
+                r = requests.get(url, timeout=3)
+                if r.status_code == 200:
+                    for line in r.text.splitlines():
+                        if line.startswith("#") or not line.strip():
+                            continue
+                        if "num_used_tokens" in line:
+                            try:
+                                self.used_samples.append(float(line.split()[-1]))
+                            except ValueError:
+                                pass
+                        elif "num_total_tokens" in line:
+                            try:
+                                self.total_samples.append(float(line.split()[-1]))
+                            except ValueError:
+                                pass
+            except Exception:
+                pass
+            self._stop.wait(self.interval)
+
+    def summary(self) -> Dict:
+        out = {}
+        if self.used_samples:
+            out["kv_used_tokens_avg"] = np.mean(self.used_samples)
+            out["kv_used_tokens_max"] = np.max(self.used_samples)
+        if self.total_samples:
+            out["kv_total_tokens"] = self.total_samples[-1]
+        return out
+
+
 class GPUMonitor:
     """Samples GPU memory/power in a background thread via nvidia-smi."""
 
@@ -344,96 +418,52 @@ def wait_for_server(server_url: str, timeout: int = 300):
 #  Main benchmark loop
 # ------------------------------------------------------------------ #
 
-def run_benchmark(args):
-    server_url = args.server
-    model_name = args.model_name
-    max_tokens = args.max_tokens
-    num_queries = args.num_queries
-    concurrency = args.concurrency
-    use_stream = not args.no_stream
-
-    # Load prompts
-    if args.dataset and os.path.exists(args.dataset):
-        prompts = load_prompts_from_jsonl(args.dataset, sample_n=num_queries)
-        print(f"[INFO] Loaded {len(prompts)} prompts from {args.dataset}")
-    else:
-        prompts = DEFAULT_PROMPTS
-        print(f"[INFO] Using {len(prompts)} built-in prompts")
-
-    # Expand prompts to num_queries by cycling
-    while len(prompts) < num_queries:
-        prompts = prompts + prompts
-    prompts = prompts[:num_queries]
-
-    # Wait for server
-    if not wait_for_server(server_url):
-        sys.exit(1)
-
-    # Auto-detect model name if default
-    if model_name == "default":
-        model_name = detect_model_name(server_url)
-        print(f"[INFO] Auto-detected model: {model_name}")
-
-    # Warmup
-    print(f"[INFO] Warmup: sending 3 requests ...")
-    for i in range(min(3, len(prompts))):
-        send_request(server_url, prompts[i], model_name, max_tokens=16)
-
-    # Start GPU monitor
-    gpu_mon = GPUMonitor(interval=1.0)
-    gpu_mon.start()
-
-    # Run benchmark
+def _run_one_concurrency(server_url, prompts, model_name, max_tokens, concurrency, use_stream):
+    """Run benchmark at a single concurrency level. Returns (results, errors, bench_time)."""
     send_fn = send_streaming_request if use_stream else send_request
     results = []
     errors = 0
 
-    print(f"\n{'='*60}")
-    print(f" Benchmark: {model_name}")
-    print(f" Queries: {num_queries}  Concurrency: {concurrency}  Streaming: {use_stream}")
-    print(f" Max tokens: {max_tokens}")
-    print(f"{'='*60}\n")
-
     bench_start = time.perf_counter()
-
     if concurrency == 1:
         for i, prompt in enumerate(prompts):
             r = send_fn(server_url, prompt, model_name, max_tokens)
             if r["error"]:
                 errors += 1
-                print(f"  [{i+1}/{num_queries}] ERROR: {r['error']}")
+                print(f"  [{i+1}/{len(prompts)}] ERROR: {r['error']}")
             else:
                 results.append(r)
-                print(f"  [{i+1}/{num_queries}] TTFT={r['ttft_ms']:.1f}ms  "
-                      f"Output={r['output_tokens']}tok  "
-                      f"Total={r['total_time_ms']:.1f}ms  "
-                      f"TPS={r['tps']:.1f}" if r['tps'] else
-                      f"  [{i+1}/{num_queries}] Total={r['total_time_ms']:.1f}ms")
+                if r.get("ttft_ms") and r.get("tps"):
+                    print(f"  [{i+1}/{len(prompts)}] TTFT={r['ttft_ms']:.1f}ms  "
+                          f"Output={r['output_tokens']}tok  "
+                          f"Total={r['total_time_ms']:.1f}ms  "
+                          f"TPS={r['tps']:.1f}")
     else:
         with ThreadPoolExecutor(max_workers=concurrency) as pool:
             futures = {
                 pool.submit(send_fn, server_url, p, model_name, max_tokens): idx
                 for idx, p in enumerate(prompts)
             }
+            completed = 0
             for fut in as_completed(futures):
                 idx = futures[fut]
                 r = fut.result()
+                completed += 1
                 if r["error"]:
                     errors += 1
-                    print(f"  [{idx+1}/{num_queries}] ERROR: {r['error']}")
+                    print(f"  [{completed}/{len(prompts)}] ERROR: {r['error']}")
                 else:
                     results.append(r)
+                    if r.get("ttft_ms") and r.get("tps"):
+                        print(f"  [{completed}/{len(prompts)}] TTFT={r['ttft_ms']:.1f}ms  "
+                              f"Output={r['output_tokens']}tok  "
+                              f"TPS={r['tps']:.1f}")
+    bench_time = time.perf_counter() - bench_start
+    return results, errors, bench_time
 
-    bench_end = time.perf_counter()
-    bench_time = bench_end - bench_start
 
-    gpu_mon.stop()
-
-    # ---- Report ----
-    if not results:
-        print("\n[ERROR] No successful requests. Cannot generate report.")
-        return
-
+def build_report(results, errors, bench_time, concurrency, model_name,
+                 num_queries, gpu_info, kv_info=None, kv_mon_info=None) -> str:
     ttft_list = [r["ttft_ms"] for r in results if r["ttft_ms"] is not None]
     tpot_list = [r["tpot_ms"] for r in results if r["tpot_ms"] is not None]
     total_list = [r["total_time_ms"] for r in results]
@@ -452,8 +482,6 @@ def run_benchmark(args):
                 f"p99={np.percentile(a,99):8.2f}  "
                 f"min={np.min(a):8.2f}  "
                 f"max={np.max(a):8.2f}")
-
-    gpu_info = gpu_mon.summary()
 
     report = []
     report.append("")
@@ -477,8 +505,35 @@ def run_benchmark(args):
     report.append("--- Throughput ---")
     report.append(pstats(tps_list, "TPS (tok/s)"))
     total_output_tok = sum(output_tok_list)
-    report.append(f"  {'Aggregate TPS':20s}: {total_output_tok / bench_time:.2f} tok/s")
+    agg_tps = total_output_tok / bench_time if bench_time > 0 else 0
+    report.append(f"  {'Aggregate TPS':20s}: {agg_tps:.2f} tok/s")
     report.append("")
+
+    # KV Cache section
+    if kv_info:
+        report.append("--- KV Cache ---")
+        max_tok = kv_info.get("max_total_num_tokens")
+        mem_frac = kv_info.get("mem_fraction_static")
+        tp = kv_info.get("tp_size", 1)
+        ctx = kv_info.get("context_length")
+        if max_tok:
+            report.append(f"  KV capacity (tokens):  {max_tok:,}")
+        if mem_frac:
+            report.append(f"  mem_fraction_static:   {mem_frac}")
+        if ctx:
+            report.append(f"  context_length:        {ctx:,}")
+        if tp:
+            report.append(f"  tensor_parallel_size:  {tp}")
+        if kv_mon_info:
+            used_max = kv_mon_info.get("kv_used_tokens_max")
+            used_avg = kv_mon_info.get("kv_used_tokens_avg")
+            total = kv_mon_info.get("kv_total_tokens")
+            if used_max is not None:
+                util = (used_max / total * 100) if total else 0
+                report.append(f"  KV used (peak):        {used_max:,.0f} tok  ({util:.1f}% of capacity)")
+            if used_avg is not None:
+                report.append(f"  KV used (avg):         {used_avg:,.0f} tok")
+        report.append("")
 
     if gpu_info:
         report.append("--- GPU ---")
@@ -488,51 +543,168 @@ def run_benchmark(args):
         report.append(f"  GPU Power (max):     {gpu_info['gpu_power_max_w']:.1f} W")
         report.append(f"  GPU Samples:         {gpu_info['gpu_samples']}")
     report.append("=" * 70)
+    return "\n".join(report)
 
-    report_text = "\n".join(report)
-    print(report_text)
 
-    # ---- Save results ----
-    out_dir = os.path.join(os.path.dirname(__file__), "results")
+def run_benchmark(args):
+    server_url = args.server
+    model_name = args.model_name
+    max_tokens = args.max_tokens
+    num_queries = args.num_queries
+    use_stream = not args.no_stream
+
+    # Parse concurrency list
+    if args.concurrency_sweep:
+        concurrency_list = [int(x) for x in args.concurrency_sweep.split(",")]
+    else:
+        concurrency_list = [args.concurrency]
+
+    # Load prompts
+    load_n = max(num_queries, max(concurrency_list) * 4)
+    if args.dataset and os.path.exists(args.dataset):
+        prompts_pool = load_prompts_from_jsonl(args.dataset, sample_n=load_n)
+        print(f"[INFO] Loaded {len(prompts_pool)} prompts from {args.dataset}")
+    else:
+        prompts_pool = DEFAULT_PROMPTS
+        print(f"[INFO] Using {len(prompts_pool)} built-in prompts")
+
+    # Wait for server
+    if not wait_for_server(server_url):
+        sys.exit(1)
+
+    # Auto-detect model name if default
+    if model_name == "default":
+        model_name = detect_model_name(server_url)
+        print(f"[INFO] Auto-detected model: {model_name}")
+
+    # Fetch KV cache info once
+    kv_info = get_kv_cache_info(server_url)
+    if kv_info.get("max_total_num_tokens"):
+        print(f"[INFO] KV cache capacity: {kv_info['max_total_num_tokens']:,} tokens  "
+              f"(mem_frac={kv_info.get('mem_fraction_static')}, tp={kv_info.get('tp_size')})")
+
+    # Warmup
+    print(f"[INFO] Warmup: sending 3 requests ...")
+    wp = prompts_pool[:3] if len(prompts_pool) >= 3 else prompts_pool
+    for p in wp:
+        send_request(server_url, p, model_name, max_tokens=16)
+
+    # Save results dir
+    out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
     os.makedirs(out_dir, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    # Use short model name for file naming (strip path)
     short_name = model_name.rstrip("/").split("/")[-1]
-    base_name = f"{short_name}_{ts}"
 
-    # Save summary
-    summary_path = os.path.join(out_dir, f"{base_name}_summary.txt")
-    with open(summary_path, "w") as f:
-        f.write(report_text)
-    print(f"\n[INFO] Summary saved to {summary_path}")
+    sweep_summary = []  # (concurrency, agg_tps, ttft_avg, ttft_p99, tpot_avg)
 
-    # Save per-query CSV
-    csv_path = os.path.join(out_dir, f"{base_name}_detail.csv")
-    fieldnames = ["query_id", "ttft_ms", "tpot_ms", "total_time_ms",
-                  "input_tokens", "output_tokens", "tps"]
-    with open(csv_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for i, r in enumerate(results):
-            writer.writerow({
-                "query_id": i,
-                "ttft_ms": f"{r['ttft_ms']:.2f}" if r["ttft_ms"] else "",
-                "tpot_ms": f"{r['tpot_ms']:.2f}" if r["tpot_ms"] else "",
-                "total_time_ms": f"{r['total_time_ms']:.2f}",
-                "input_tokens": r["input_tokens"],
-                "output_tokens": r["output_tokens"],
-                "tps": f"{r['tps']:.2f}" if r["tps"] else "",
-            })
-    print(f"[INFO] Detail CSV saved to {csv_path}")
+    for concurrency in concurrency_list:
+        # Build prompt list for this run (cycle if needed)
+        prompts = list(prompts_pool)
+        while len(prompts) < num_queries:
+            prompts = prompts + list(prompts_pool)
+        prompts = prompts[:num_queries]
 
-    # Save GPU samples
-    if gpu_mon.samples:
-        gpu_path = os.path.join(out_dir, f"{base_name}_gpu.csv")
-        with open(gpu_path, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=["ts", "gpu", "mem_used_mib", "mem_total_mib", "power_w"])
+        print(f"\n{'='*60}")
+        print(f" Benchmark: {model_name}")
+        print(f" Queries: {num_queries}  Concurrency: {concurrency}  Streaming: {use_stream}")
+        print(f" Max tokens: {max_tokens}")
+        print(f"{'='*60}\n")
+
+        # Start monitors
+        gpu_mon = GPUMonitor(interval=1.0)
+        gpu_mon.start()
+        kv_mon = KVCacheMonitor(server_url, interval=0.5)
+        kv_mon.start()
+
+        results, errors, bench_time = _run_one_concurrency(
+            server_url, prompts, model_name, max_tokens, concurrency, use_stream)
+
+        gpu_mon.stop()
+        kv_mon.stop()
+
+        if not results:
+            print("\n[ERROR] No successful requests. Cannot generate report.")
+            continue
+
+        gpu_info = gpu_mon.summary()
+        kv_mon_info = kv_mon.summary()
+
+        report_text = build_report(results, errors, bench_time, concurrency, model_name,
+                                   num_queries, gpu_info, kv_info, kv_mon_info)
+        print(report_text)
+
+        # Compute sweep row
+        output_toks = [r["output_tokens"] for r in results]
+        ttft_vals = [r["ttft_ms"] for r in results if r["ttft_ms"] is not None]
+        tpot_vals = [r["tpot_ms"] for r in results if r["tpot_ms"] is not None]
+        agg_tps = sum(output_toks) / bench_time if bench_time > 0 else 0
+        sweep_summary.append({
+            "concurrency": concurrency,
+            "agg_tps": agg_tps,
+            "ttft_avg": np.mean(ttft_vals) if ttft_vals else None,
+            "ttft_p99": np.percentile(ttft_vals, 99) if ttft_vals else None,
+            "tpot_avg": np.mean(tpot_vals) if tpot_vals else None,
+            "errors": errors,
+        })
+
+        # Save per-run files
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_name = f"{short_name}_c{concurrency}_{ts}"
+
+        summary_path = os.path.join(out_dir, f"{base_name}_summary.txt")
+        with open(summary_path, "w") as f:
+            f.write(report_text)
+        print(f"\n[INFO] Summary saved to {summary_path}")
+
+        csv_path = os.path.join(out_dir, f"{base_name}_detail.csv")
+        fieldnames = ["query_id", "ttft_ms", "tpot_ms", "total_time_ms",
+                      "input_tokens", "output_tokens", "tps"]
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
-            writer.writerows(gpu_mon.samples)
-        print(f"[INFO] GPU data saved to {gpu_path}")
+            for i, r in enumerate(results):
+                writer.writerow({
+                    "query_id": i,
+                    "ttft_ms": f"{r['ttft_ms']:.2f}" if r["ttft_ms"] else "",
+                    "tpot_ms": f"{r['tpot_ms']:.2f}" if r["tpot_ms"] else "",
+                    "total_time_ms": f"{r['total_time_ms']:.2f}",
+                    "input_tokens": r["input_tokens"],
+                    "output_tokens": r["output_tokens"],
+                    "tps": f"{r['tps']:.2f}" if r["tps"] else "",
+                })
+        print(f"[INFO] Detail CSV saved to {csv_path}")
+
+        if gpu_mon.samples:
+            gpu_path = os.path.join(out_dir, f"{base_name}_gpu.csv")
+            with open(gpu_path, "w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=["ts", "gpu", "mem_used_mib", "mem_total_mib", "power_w"])
+                writer.writeheader()
+                writer.writerows(gpu_mon.samples)
+            print(f"[INFO] GPU data saved to {gpu_path}")
+
+    # ---- Sweep summary table ----
+    if len(sweep_summary) > 1:
+        print(f"\n{'='*70}")
+        print(f"  THROUGHPUT SWEEP SUMMARY — {model_name}")
+        print(f"{'='*70}")
+        print(f"  {'Concurrency':>12}  {'Agg TPS':>10}  {'TTFT avg':>10}  {'TTFT p99':>10}  {'TPOT avg':>10}  {'Errors':>7}")
+        print(f"  {'-'*12}  {'-'*10}  {'-'*10}  {'-'*10}  {'-'*10}  {'-'*7}")
+        for row in sweep_summary:
+            ttft_avg_s = f"{row['ttft_avg']:.1f}ms" if row["ttft_avg"] is not None else "N/A"
+            ttft_p99_s = f"{row['ttft_p99']:.1f}ms" if row["ttft_p99"] is not None else "N/A"
+            tpot_avg_s = f"{row['tpot_avg']:.1f}ms" if row["tpot_avg"] is not None else "N/A"
+            print(f"  {row['concurrency']:>12}  {row['agg_tps']:>9.2f}  {ttft_avg_s:>10}  {ttft_p99_s:>10}  {tpot_avg_s:>10}  {row['errors']:>7}")
+        best = max(sweep_summary, key=lambda x: x["agg_tps"])
+        print(f"\n  Peak Aggregate TPS: {best['agg_tps']:.2f} tok/s  (at concurrency={best['concurrency']})")
+        print(f"{'='*70}")
+
+        # Save sweep CSV
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        sweep_path = os.path.join(out_dir, f"{short_name}_sweep_{ts}.csv")
+        with open(sweep_path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=["concurrency", "agg_tps", "ttft_avg", "ttft_p99", "tpot_avg", "errors"])
+            writer.writeheader()
+            writer.writerows(sweep_summary)
+        print(f"[INFO] Sweep CSV saved to {sweep_path}")
 
 
 # ------------------------------------------------------------------ #
@@ -570,6 +742,8 @@ if __name__ == "__main__":
                         help="Path to JSONL dataset for prompts")
     parser.add_argument("--no-stream", action="store_true",
                         help="Use non-streaming mode (no TTFT/TPOT)")
+    parser.add_argument("--concurrency-sweep", type=str, default=None,
+                        help="Comma-separated concurrency levels to sweep, e.g. '1,4,8,16,32'")
 
     args = parser.parse_args()
     run_benchmark(args)
