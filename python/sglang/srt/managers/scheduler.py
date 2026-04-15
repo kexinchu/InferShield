@@ -404,6 +404,8 @@ class Scheduler(
             self.tree_cache,
             self.enable_hierarchical_cache,
             self.private_judge_client,
+            access_budget_B=server_args.safekv_access_budget,
+            creator_threshold_K=server_args.safekv_creator_threshold,
         )
         assert (
             server_args.schedule_conservativeness >= 0
@@ -549,7 +551,9 @@ class Scheduler(
                     page_size=self.page_size,
                     disable=server_args.disable_radix_cache,
                     enable_kv_cache_events=self.enable_kv_cache_events,
-                    private_judge_client=self.private_judge_client
+                    private_judge_client=self.private_judge_client,
+                    access_budget_B=server_args.safekv_access_budget,
+                    creator_threshold_K=server_args.safekv_creator_threshold,
                 )
 
         self.decode_mem_cache_buf_multiplier = (
@@ -914,11 +918,6 @@ class Scheduler(
                 self.return_health_check_ct += 1
                 continue
 
-            # Check if it is a privacy detection request
-            if is_privacy_detection_request(recv_req):
-                self._handle_privacy_detection_request(recv_req)
-                continue
-
             output = self._request_dispatcher(recv_req)
             if output is not None:
                 if isinstance(output, RpcReqOutput):
@@ -926,37 +925,6 @@ class Scheduler(
                         self.recv_from_rpc.send_pyobj(output)
                 else:
                     self.send_to_tokenizer.send_pyobj(output)
-
-    def _handle_privacy_detection_request(self, recv_req):
-        """处理隐私检测请求，给予高优先级"""
-        # 创建Req对象，与常规请求类似
-        req = Req(
-            recv_req.rid,
-            recv_req.input_text,
-            recv_req.input_ids,
-            recv_req.sampling_params,
-            return_logprob=recv_req.return_logprob,
-            top_logprobs_num=recv_req.top_logprobs_num,
-            token_ids_logprob=recv_req.token_ids_logprob,
-            stream=recv_req.stream,
-            lora_path=recv_req.lora_path,
-            input_embeds=recv_req.input_embeds,
-            custom_logit_processor=recv_req.custom_logit_processor,
-            return_hidden_states=recv_req.return_hidden_states,
-            eos_token_ids=self.model_config.hf_eos_token_id,
-            bootstrap_host=recv_req.bootstrap_host,
-            bootstrap_port=recv_req.bootstrap_port,
-            bootstrap_room=recv_req.bootstrap_room,
-            user_id=recv_req.sampling_params.user_id,
-        )
-        req.tokenizer = self.tokenizer
-
-        # 标记为隐私检测请求
-        req.is_privacy_detection = True
-        req.priority = 1  # 高优先级
-
-        # 使用标准的队列添加方法
-        self._add_request_to_queue(req)
 
     def handle_generate_request(
         self,
@@ -1129,14 +1097,7 @@ class Scheduler(
         elif self.disaggregation_mode == DisaggregationMode.DECODE:
             self.disagg_decode_prealloc_queue.add(req)
         else:
-            # 如果是隐私检测请求，插入到队列前面
-            if req.is_privacy_detection:
-                # 隐私检测请求具有高优先级，插入到队列前面
-                self.waiting_queue.insert(0, req)
-                logger.info(f"Added privacy detection request {req.rid} to front of queue")
-            else:
-                # 普通请求添加到队列末尾
-                self.waiting_queue.append(req)
+            self.waiting_queue.append(req)
 
     def _extend_requests_to_queue(self, reqs: List[Req]):
         if self.disaggregation_mode == DisaggregationMode.PREFILL:
@@ -1443,9 +1404,6 @@ class Scheduler(
 
         # Get priority queue
         prefix_computed = self.policy.calc_priority(self.waiting_queue)
-
-        # Sort waiting queue by priority (privacy detection requests first)
-        self.waiting_queue.sort(key=lambda req: (req.priority, req.queue_time_start), reverse=True)
 
         # Prefill policy
         adder = PrefillAdder(
@@ -2463,11 +2421,6 @@ class Scheduler(
 
 def is_health_check_generate_req(recv_req):
     return getattr(recv_req, "rid", "").startswith("HEALTH_CHECK")
-
-
-def is_privacy_detection_request(recv_req):
-    """检查是否为隐私检测请求"""
-    return getattr(recv_req, "rid", "").startswith("PRIVACY_DETECTION_LLM_")
 
 
 def _export_static_state(model):

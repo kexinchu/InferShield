@@ -78,6 +78,8 @@ class SchedulePolicy:
         tree_cache: BasePrefixCache,
         enable_hierarchical_cache: bool,
         private_judge_client: PrivateJudgeClient,
+        access_budget_B: int = 10,
+        creator_threshold_K: int = 2,
     ):
         self.policy = self._validate_and_adjust_policy(policy, tree_cache)
         self.tree_cache = tree_cache
@@ -89,7 +91,9 @@ class SchedulePolicy:
             token_to_kv_pool_allocator=None,
             page_size=1,
             disable=False,
-            private_judge_client=private_judge_client
+            private_judge_client=private_judge_client,
+            access_budget_B=access_budget_B,
+            creator_threshold_K=creator_threshold_K,
         )
 
     def calc_priority(self, waiting_queue: List[Req]) -> bool:

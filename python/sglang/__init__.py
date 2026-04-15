@@ -33,9 +33,6 @@ from sglang.lang.choices import (
 )
 from sglang.utils import LazyImport
 from sglang.version import __version__
-# add by kexinchu - for global epoch(time_windows)
-from .global_epoch import get_epoch, global_epoch
-
 ServerArgs = LazyImport("sglang.srt.server_args", "ServerArgs")
 Anthropic = LazyImport("sglang.lang.backend.anthropic", "Anthropic")
 LiteLLM = LazyImport("sglang.lang.backend.litellm", "LiteLLM")
@@ -75,6 +72,4 @@ __all__ = [
     "VertexAI",
     "global_config",
     "__version__",
-    "get_epoch",    # add by kexinchu
-    "global_epoch", # add by kexinchu
 ]

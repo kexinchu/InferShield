@@ -21,9 +21,6 @@ The radix tree data structure for managing the KV cache.
 from collections import defaultdict
 from typing import Optional
 
-# add by kexinchu --- start
-from sglang import get_epoch
-# add by kexinchu --- end
 
 class TreeNode:
 
@@ -35,9 +32,8 @@ class TreeNode:
         self.key = None
         self.value = None
         self.lock_ref = 0
-        # self.last_access_time = time.monotonic()
 
-        self.hit_count = 0 # already have hit_count
+        self.hit_count = 0
         # indicating the node is loading KV cache from host
         self.loading = False
         # store the host indices of KV cache
@@ -46,22 +42,17 @@ class TreeNode:
         self.id = TreeNode.counter if id is None else id
         TreeNode.counter += 1
 
-        # add by kexinchu --- start
-        self.private = True  # default is private node
+        # SafeKV privacy metadata
+        self.private_tag = 1  # 1 = private (default), 0 = shareable
         self.need_check_privacy = True
-        self.owner_id = 0
-        self.u_cnt_l = set() # the hit user_id list
-        self.hit_pre = 0
-        self.u_cnt_pre = 0 # 上一个time_window的hit_user_count
-        self.epoch = get_epoch()
-        self.after_merged = False # 是否被合并过 (合并)
-        self.merged_key = []
-        self.merged_value = []
-        self.is_sub_root = False # 是否是隐私节点合并后的根节点
+        self.creator_id = None  # user_id of the creator
+        self.creator_set = set()  # distinct user IDs who created this prefix
+        self.creator_count = 0  # len(creator_set)
+        self.access_budget = 0  # cross-tenant access budget (set to B on promotion)
+        self.permanently_private = False  # prevents re-promotion after budget demotion
 
         # prompt - user's input
         self.prompt = ""
-        # add by kexinchu --- end
 
     @property
     def evicted(self):
@@ -71,11 +62,5 @@ class TreeNode:
     def backuped(self):
         return self.host_value is not None
 
-    # add by kexinchu --- start
     def __lt__(self, other: "TreeNode"):
-        # 改为使用epoch
-        # return self.last_access_time < other.last_access_time
-        return self.epoch < other.epoch
-    # add by kexinchu --- end
-
-
+        return self.hit_count < other.hit_count

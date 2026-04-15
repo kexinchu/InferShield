@@ -17,11 +17,8 @@ from sglang.srt.mem_cache.memory_pool import (
 )
 from sglang.srt.mem_cache.radix_cache import RadixCache
 from sglang.srt.mem_cache.tree_node import TreeNode
-# add by kexinchu --- start
-from sglang import get_epoch 
-from sglang.srt.server_args import ServerArgs, PortArgs 
-from sglang.srt.managers.private_service.private_client import PrivateJudgeClient # add by kexinchu
-# add by kexinchu --- end
+from sglang.srt.server_args import ServerArgs, PortArgs
+from sglang.srt.managers.private_service.private_client import PrivateJudgeClient
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +33,8 @@ class HiRadixCache(RadixCache):
         hicache_ratio: float,
         hicache_size: int,
         hicache_write_policy: str,
-        server_args: Optional[ServerArgs] = None,   # add by kexinchu
-        port_args: Optional[PortArgs] = None,       # add by kexinchu
+        server_args: Optional[ServerArgs] = None,
+        port_args: Optional[PortArgs] = None,
     ):
         self.kv_cache = token_to_kv_pool_allocator.get_kvcache()
         if isinstance(self.kv_cache, MHATokenToKVPool):
@@ -70,6 +67,10 @@ class HiRadixCache(RadixCache):
         )
         # add by kexinchu --- end
 
+        # SafeKV safeguard parameters
+        self.access_budget_B = getattr(server_args, 'safekv_access_budget', 10) if server_args else 10
+        self.creator_threshold_K = getattr(server_args, 'safekv_creator_threshold', 2) if server_args else 2
+
         # record the nodes with ongoing write through
         self.ongoing_write_through = {}
         # record the node segments with ongoing load back
@@ -80,7 +81,11 @@ class HiRadixCache(RadixCache):
         )
         self.load_back_threshold = 10
         super().__init__(
-            req_to_token_pool, token_to_kv_pool_allocator, page_size, disable=False
+            req_to_token_pool, token_to_kv_pool_allocator, page_size,
+            private_judge_client=self.private_judge_client,
+            disable=False,
+            access_budget_B=self.access_budget_B,
+            creator_threshold_K=self.creator_threshold_K,
         )
 
     def reset(self):
@@ -351,26 +356,27 @@ class HiRadixCache(RadixCache):
 
     def _match_prefix_helper(self, node: TreeNode, key: List, user_id: Optional[str] = None):
         node.last_access_time = time.monotonic()
-        node.epoch = get_epoch() # add by kexinchu
         child_key = self.get_child_key_fn(key)
         value = []
 
         while len(key) > 0 and child_key in node.children.keys():
             child = node.children[child_key]
-            # add by kexinchu --- start
-            if user_id is not None and child.private: # private node, check owner_id
-                if child.owner_id != user_id:
+            # SafeKV visibility check
+            if child.private_tag == 1:
+                if user_id is not None and child.creator_id != user_id:
                     break
-            if child.epoch < get_epoch(): # next time windows;
-                child.u_cnt_pre = len(child.u_cnt_l)
-                child.u_cnt_l = set([user_id])
-                child.hit_pre = child.hit_count
-                child.hit_count = 0
             else:
-                child.u_cnt_l.add(user_id)
-                child.hit_count += 1
-            child.epoch = get_epoch()
-            # add by kexinchu --- end
+                # Shareable node: cross-tenant access budget safeguard
+                if user_id is not None and child.creator_id != user_id:
+                    child.access_budget -= 1
+                    if child.access_budget <= 0:
+                        if child.creator_count >= self.creator_threshold_K:
+                            child.access_budget = self.access_budget_B
+                        else:
+                            child.private_tag = 1
+                            child.permanently_private = True
+                            break
+            child.hit_count += 1
             child.last_access_time = time.monotonic()
             prefix_len = self.key_match_fn(child.key, key)
             if prefix_len < len(child.key):
@@ -400,14 +406,16 @@ class HiRadixCache(RadixCache):
         new_node.lock_ref = child.lock_ref
         new_node.key = child.key[:split_len]
         new_node.loading = child.loading
-        # add by kexinchu --- start
-        new_node.owner_id = child.owner_id 
-        new_node.private = child.private
-        new_node.u_cnt_l = child.u_cnt_l
-        new_node.hit_pre = child.hit_pre
-        new_node.u_cnt_pre = child.u_cnt_pre
+        # SafeKV: inherit privacy metadata
+        new_node.creator_id = child.creator_id
+        new_node.private_tag = child.private_tag
+        new_node.need_check_privacy = child.need_check_privacy
+        new_node.creator_set = child.creator_set.copy()
+        new_node.creator_count = child.creator_count
+        new_node.access_budget = child.access_budget
+        new_node.permanently_private = child.permanently_private
         new_node.hit_count = child.hit_count
-        # add by kexinchu --- end
+        new_node.prompt = child.prompt
 
         # split value and host value if exists
         if child.evicted:
@@ -425,7 +433,6 @@ class HiRadixCache(RadixCache):
 
     def _insert_helper(self, node: TreeNode, key: List, value, user_id: Optional[str] = None):
         node.last_access_time = time.monotonic()
-        node.epoch = get_epoch() # add by kexinchu
         if len(key) == 0:
             return 0
 
@@ -435,7 +442,6 @@ class HiRadixCache(RadixCache):
         while len(key) > 0 and child_key in node.children.keys():
             node = node.children[child_key]
             node.last_access_time = time.monotonic()
-            node.epoch = get_epoch() # add by kexinchu
             prefix_len = self.key_match_fn(node.key, key)
 
             if prefix_len == len(node.key):

@@ -78,12 +78,26 @@ from torch.func import functional_call
 from torch.library import Library
 from torch.profiler import ProfilerActivity, profile, record_function
 from torch.utils._contextlib import _DecoratorContextManager
-from triton.runtime.cache import (
-    FileCacheManager,
-    default_cache_dir,
-    default_dump_dir,
-    default_override_dir,
-)
+from triton.runtime.cache import FileCacheManager
+
+try:
+    from triton.runtime.cache import (
+        default_cache_dir,
+        default_dump_dir,
+        default_override_dir,
+    )
+except ImportError:
+    # triton >= 3.5.0 removed these functions
+    import os as _os
+
+    def default_cache_dir():
+        return _os.path.join(_os.path.expanduser("~"), ".triton", "cache")
+
+    def default_dump_dir():
+        return _os.path.join(_os.path.expanduser("~"), ".triton", "dump")
+
+    def default_override_dir():
+        return _os.path.join(_os.path.expanduser("~"), ".triton", "override")
 
 logger = logging.getLogger(__name__)
 

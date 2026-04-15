@@ -156,6 +156,10 @@ class ServerArgs:
     ds_heavy_channel_type: str = "qk"
     ds_sparse_decode_threshold: int = 4096
 
+    # SafeKV privacy options
+    safekv_access_budget: int = 10  # cross-tenant access budget B
+    safekv_creator_threshold: int = 2  # multi-source confirmation threshold K
+
     # Optimization/debug options
     disable_radix_cache: bool = False
     disable_cuda_graph: bool = False
