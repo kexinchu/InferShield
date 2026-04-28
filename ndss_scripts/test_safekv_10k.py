@@ -639,7 +639,16 @@ def main():
     if not args.tag:
         args.tag = time.strftime("%Y%m%d_%H%M%S")
 
-    log_path = os.path.join(SCRIPT_DIR, "logs", "phi4.log")
+    # Use model-specific log file name for accurate log parsing
+    # SafeKV servers write to *_safekv.log; stock servers to *.log
+    log_name_map = {
+        "phi4":         "phi4_safekv.log",
+        "qwen32b":      "qwen32b_safekv.log",
+        "qwen30b":      "qwen30b_safekv.log",
+        "qwen30b-int4": "qwen30b-int4_safekv.log",
+    }
+    log_basename = log_name_map.get(args.model, f"{args.model}_safekv.log")
+    log_path = os.path.join(SCRIPT_DIR, "logs", log_basename)
 
     print("=" * 70)
     print("SafeKV 10k Multi-Turn Benchmark")

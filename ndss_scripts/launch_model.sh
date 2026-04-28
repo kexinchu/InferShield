@@ -107,6 +107,16 @@ esac
 echo "[INFO] CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}"
 echo "[INFO] Starting SGLang server (TP=${TP_SIZE}, DP=${DP_SIZE})..."
 
+SAFEKV_BUDGET="${SAFEKV_BUDGET:-10}"
+SAFEKV_THRESHOLD="${SAFEKV_THRESHOLD:-2}"
+SAFEKV_PRIVATE_ONLY="${SAFEKV_PRIVATE_ONLY:-0}"
+echo "[INFO] SafeKV: access_budget=${SAFEKV_BUDGET}, creator_threshold=${SAFEKV_THRESHOLD}, private_only=${SAFEKV_PRIVATE_ONLY}"
+
+SAFEKV_EXTRA_ARGS=""
+if [[ "${SAFEKV_PRIVATE_ONLY}" == "1" || "${SAFEKV_PRIVATE_ONLY}" == "true" ]]; then
+    SAFEKV_EXTRA_ARGS="--safekv-private-only"
+fi
+
 ${PYTHON} -m sglang.launch_server \
     --model-path "${MODEL_PATH}" \
     --host 127.0.0.1 \
@@ -121,4 +131,7 @@ ${PYTHON} -m sglang.launch_server \
     --disable-cuda-graph \
     --mem-fraction-static "${MEM_FRAC}" \
     --enable-metrics \
+    --safekv-access-budget "${SAFEKV_BUDGET}" \
+    --safekv-creator-threshold "${SAFEKV_THRESHOLD}" \
+    ${SAFEKV_EXTRA_ARGS} \
     2>&1 | tee "${LOG_FILE}"
