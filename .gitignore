@@ -57,6 +57,9 @@ cover/
 
 # Django stuff:
 *.log
+*.pid
+*.lock
+ndss_scripts/logs/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal

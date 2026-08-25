@@ -1,9 +1,0 @@
-{
-  "membership_accuracy": 0.6,
-  "adv_mi": 0.19999999999999996,
-  "n_mi_trials": 50,
-  "token_recovery_fraction": 0.12,
-  "n_rec_trials": 5,
-  "model": "phi4",
-  "policy": "strict"
-}

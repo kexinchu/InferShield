@@ -1,9 +1,0 @@
-{
-  "membership_accuracy": 0.64,
-  "adv_mi": 0.28,
-  "n_mi_trials": 50,
-  "token_recovery_fraction": 0.12,
-  "n_rec_trials": 5,
-  "model": "qwen30b",
-  "policy": "balanced"
-}
