@@ -1,0 +1,20 @@
+{
+  "n_mi_trials": 100,
+  "n_pos": 50,
+  "n_neg": 50,
+  "accuracy": 0.48,
+  "accuracy_ci_lo": 0.3846,
+  "accuracy_ci_hi": 0.5768,
+  "tpr": 0.0,
+  "tpr_ci_lo": 0.0,
+  "tpr_ci_hi": 0.0714,
+  "fpr": 0.04,
+  "fpr_ci_lo": 0.011,
+  "fpr_ci_hi": 0.1346,
+  "adv_mi": 0.04,
+  "adv_mi_ci_lo": 0.0,
+  "adv_mi_ci_hi": 0.1026,
+  "roc_auc": 0.6572,
+  "roc_auc_ci_lo": 0.5502,
+  "roc_auc_ci_hi": 0.759
+}

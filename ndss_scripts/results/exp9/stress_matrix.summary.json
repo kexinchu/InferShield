@@ -1,0 +1,6 @@
+{
+  "total_cells": 128,
+  "pass_cells": 128,
+  "max_overshoot_any": 70,
+  "max_drift_after_persist": 9
+}

@@ -1,0 +1,83 @@
+{
+  "note": "Isolation-fix rerun. Not paper artifacts.",
+  "cells": [
+    {
+      "model": "phi4",
+      "experiment": "p3",
+      "status": "done",
+      "roc_auc": 0.6184,
+      "roc_auc_ci_lo": 0.507,
+      "roc_auc_ci_hi": 0.7254,
+      "adv_mi": 0.0,
+      "tpr": 1.0,
+      "fpr": 1.0,
+      "tokens_recovered": 0,
+      "tokens_attempted": 50
+    },
+    {
+      "model": "phi4",
+      "experiment": "e2_b0",
+      "status": "done",
+      "roc_auc": 0.5412,
+      "roc_auc_ci_lo": 0.4322,
+      "roc_auc_ci_hi": 0.6604,
+      "adv_mi": 0.04,
+      "tpr": 0.06,
+      "fpr": 0.1,
+      "tokens_recovered": null,
+      "tokens_attempted": null
+    },
+    {
+      "model": "qwen30b",
+      "experiment": "p3",
+      "status": "done",
+      "roc_auc": 0.4738,
+      "roc_auc_ci_lo": 0.3612,
+      "roc_auc_ci_hi": 0.5902,
+      "adv_mi": 0.0,
+      "tpr": 1.0,
+      "fpr": 1.0,
+      "tokens_recovered": 0,
+      "tokens_attempted": 50
+    },
+    {
+      "model": "qwen30b",
+      "experiment": "e2_b0",
+      "status": "done",
+      "roc_auc": 0.532,
+      "roc_auc_ci_lo": 0.4156,
+      "roc_auc_ci_hi": 0.642,
+      "adv_mi": 0.0,
+      "tpr": 0.0,
+      "fpr": 0.0,
+      "tokens_recovered": null,
+      "tokens_attempted": null
+    },
+    {
+      "model": "qwen32b",
+      "experiment": "p3",
+      "status": "done",
+      "roc_auc": 0.493,
+      "roc_auc_ci_lo": 0.379,
+      "roc_auc_ci_hi": 0.617,
+      "adv_mi": 0.0,
+      "tpr": 1.0,
+      "fpr": 1.0,
+      "tokens_recovered": 0,
+      "tokens_attempted": 50
+    },
+    {
+      "model": "qwen32b",
+      "experiment": "e2_b0",
+      "status": "done",
+      "roc_auc": 0.468,
+      "roc_auc_ci_lo": 0.3528,
+      "roc_auc_ci_hi": 0.5844,
+      "adv_mi": 0.0,
+      "tpr": 0.02,
+      "fpr": 0.02,
+      "tokens_recovered": null,
+      "tokens_attempted": null
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "budget_B": 10,
+  "n_cycles": 20,
+  "balanced_total_hits": 10,
+  "strict_total_hits": 0,
+  "legacy_total_hits": 10,
+  "race_workers": [
+    2,
+    8,
+    32,
+    128
+  ],
+  "race_overshoots": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "restart_total_hits": 10,
+  "all_pass": true
+}

@@ -1,0 +1,18 @@
+{
+  "access_budget_B": 0,
+  "safekv_mode": "strict",
+  "source_csv": "qwen32b_B0_system_prompt.csv",
+  "row": {
+    "model": "qwen32b",
+    "policy": "strict",
+    "workload": "system_prompt",
+    "n_users": "20",
+    "rps": "8.0",
+    "n_requests": "15",
+    "mean_ttft_ms": "477.0617580662171",
+    "p50_ttft_ms": "468.0114686489105",
+    "p95_ttft_ms": "900.7385103031993",
+    "p99_ttft_ms": "900.7385103031993",
+    "throughput_tok_s": "38.811619297693724"
+  }
+}

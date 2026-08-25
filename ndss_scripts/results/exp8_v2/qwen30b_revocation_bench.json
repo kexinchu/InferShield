@@ -1,0 +1,14 @@
+{
+  "mean_us": 42.28443652391434,
+  "p50_us": 43.01406443119049,
+  "p95_us": 43.96028816699982,
+  "p99_us": 54.230913519859314,
+  "max_us": 57.93292075395584,
+  "n": 500,
+  "linearization": {
+    "n": 500,
+    "concurrent_verify_allowed_before_revoke": 0,
+    "concurrent_verify_denied_after_revoke": 500,
+    "post_revoke_verify_denied": 500
+  }
+}

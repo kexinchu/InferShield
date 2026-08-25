@@ -1,0 +1,160 @@
+{
+    "trie_patterns": [
+        {
+            "name": "identity_keywords",
+            "pattern": "social security number,social_security,driver license,driver's license,passport number,credit card number,debit card,routing number,iban,cvv",
+            "pattern_type": "trie",
+            "severity": "critical",
+            "description": "High-precision identity keywords (word-bounded)"
+        }
+    ],
+    "regex_patterns": [
+        {
+            "name": "email",
+            "pattern": "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b",
+            "pattern_type": "regex",
+            "severity": "high",
+            "description": "Email address"
+        },
+        {
+            "name": "phone_cn",
+            "pattern": "\\b1[3-9]\\d{9}\\b",
+            "pattern_type": "regex",
+            "severity": "high",
+            "description": "China mobile number"
+        },
+        {
+            "name": "phone_us",
+            "pattern": "(?:\\+?1[-.\\s]?)?(?:\\(\\d{3}\\)|\\b\\d{3}\\b)[-.\\s]?\\d{3}[-.\\s]?\\d{4}\\b",
+            "pattern_type": "regex",
+            "severity": "high",
+            "description": "US telephone number"
+        },
+        {
+            "name": "id_card_cn",
+            "pattern": "\\b[1-9]\\d{5}(18|19|20)\\d{2}((0[1-9])|(1[0-2]))(([0-2][1-9])|10|20|30|31)\\d{3}[0-9Xx]\\b",
+            "pattern_type": "regex",
+            "severity": "critical",
+            "description": "China national ID"
+        },
+        {
+            "name": "ssn_us",
+            "pattern": "\\b\\d{3}-\\d{2}-\\d{4}\\b",
+            "pattern_type": "regex",
+            "severity": "critical",
+            "description": "US Social Security number"
+        },
+        {
+            "name": "passport",
+            "pattern": "(?i)\\bpassport(?:\\s+(?:no\\.?|number|#))?\\s*[A-Z][0-9]{6,9}\\b",
+            "pattern_type": "regex",
+            "severity": "critical",
+            "description": "Passport number with context"
+        },
+        {
+            "name": "ip_address",
+            "pattern": "\\b(?:(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\b",
+            "pattern_type": "regex",
+            "severity": "medium",
+            "description": "IPv4 address"
+        },
+        {
+            "name": "ipv6_address",
+            "pattern": "\\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\\b",
+            "pattern_type": "regex",
+            "severity": "medium",
+            "description": "IPv6 address"
+        },
+        {
+            "name": "imei",
+            "pattern": "\\b\\d{2}-\\d{6}-\\d{6}-\\d\\b",
+            "pattern_type": "regex",
+            "severity": "high",
+            "description": "Device IMEI"
+        },
+        {
+            "name": "phone_intl",
+            "pattern": "\\b(?:\\+|00)\\d{1,3}[-.\\s]?(?:\\(\\d{2,4}\\)|\\d{2,4})[-.\\s]?\\d{3,4}[-.\\s]?\\d{3,4}\\b",
+            "pattern_type": "regex",
+            "severity": "high",
+            "description": "International telephone number"
+        },
+        {
+            "name": "phone_uk",
+            "pattern": "\\b0\\d{4}\\s\\d{5,6}\\b",
+            "pattern_type": "regex",
+            "severity": "high",
+            "description": "UK-style telephone number"
+        },
+        {
+            "name": "pin_cvv",
+            "pattern": "(?i)\\b(?:pin|cvv|cvc)\\s*[:#]?\\s*\\d{3,6}\\b",
+            "pattern_type": "regex",
+            "severity": "critical",
+            "description": "PIN or card CVV with context"
+        },
+        {
+            "name": "mac_address",
+            "pattern": "\\b([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})\\b",
+            "pattern_type": "regex",
+            "severity": "medium",
+            "description": "MAC address"
+        },
+        {
+            "name": "credit_card",
+            "pattern": "\\b(?:\\d{4}-){3}\\d{4}\\b",
+            "pattern_type": "regex",
+            "severity": "critical",
+            "description": "Hyphenated payment card number"
+        },
+        {
+            "name": "bank_card",
+            "pattern": "\\b\\d{16,19}\\b",
+            "pattern_type": "regex",
+            "severity": "high",
+            "description": "Bank or card account digits (Luhn-checked)"
+        },
+        {
+            "name": "iban",
+            "pattern": "\\b[A-Z]{2}\\d{2}[A-Z0-9]{11,30}\\b",
+            "pattern_type": "regex",
+            "severity": "critical",
+            "description": "IBAN"
+        },
+        {
+            "name": "street_address",
+            "pattern": "\\b\\d{1,5}\\s+[A-Za-z][A-Za-z.'\\-]+(?:\\s+[A-Za-z][A-Za-z.'\\-]+){0,4}\\s+(?:Street|St\\.?|Avenue|Ave\\.?|Road|Rd\\.?|Boulevard|Blvd\\.?|Lane|Ln\\.?|Drive|Dr\\.?|Court|Ct\\.?|Terrace|Ter\\.?|Way|Place|Pl\\.?)\\b",
+            "pattern_type": "regex",
+            "severity": "high",
+            "description": "Street address with a street suffix"
+        },
+        {
+            "name": "us_zip",
+            "pattern": "(?i)\\b(?:zip(?:\\s*code)?|postal\\s+code)\\s*[:#]?\\s*\\d{5}(?:-\\d{4})?\\b",
+            "pattern_type": "regex",
+            "severity": "medium",
+            "description": "ZIP code with context"
+        },
+        {
+            "name": "dob_context",
+            "pattern": "(?i)\\b(?:dob|date of birth|born on)\\s*[:\\-]?\\s*\\d{1,2}[./\\-]\\d{1,2}[./\\-]\\d{2,4}\\b",
+            "pattern_type": "regex",
+            "severity": "high",
+            "description": "Date of birth with explicit context"
+        },
+        {
+            "name": "username_context",
+            "pattern": "(?i)\\b(?:user\\s*name|username|login)\\s*[:#=]\\s*\\S{3,}",
+            "pattern_type": "regex",
+            "severity": "medium",
+            "description": "Account username with context"
+        },
+        {
+            "name": "crypto_address",
+            "pattern": "\\b(?:[13][a-km-zA-HJ-NP-Z1-9]{25,34}|0x[a-fA-F0-9]{40}|[LM][a-km-zA-HJ-NP-Z1-9]{26,33})\\b",
+            "pattern_type": "regex",
+            "severity": "high",
+            "description": "Bitcoin / Ethereum / Litecoin address"
+        }
+    ]
+}

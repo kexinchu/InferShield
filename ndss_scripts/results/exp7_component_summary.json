@@ -1,0 +1,207 @@
+{
+  "deterministic_ablation": [
+    {
+      "ablation_step": "1",
+      "step_name": "sglan",
+      "n_cycles": "20",
+      "budget_B": "10",
+      "total_xt_hits": "240",
+      "first_xt_hit_cycle": "0",
+      "max_xt_hits_per_cycle": "12",
+      "budgeted_respected": "",
+      "strict_invariant": "",
+      "unauthorized_private_hits": "240",
+      "budgeted_hits": "0",
+      "authorized_public_hits": "0",
+      "budget_scope": "none",
+      "public_ready_before_workload": "0",
+      "materialization_requests": "0",
+      "public_created": "0",
+      "public_aliases_victim": "0",
+      "verdict": "expected_violations"
+    },
+    {
+      "ablation_step": "2",
+      "step_name": "private_namespace",
+      "n_cycles": "20",
+      "budget_B": "10",
+      "total_xt_hits": "0",
+      "first_xt_hit_cycle": "-1",
+      "max_xt_hits_per_cycle": "0",
+      "budgeted_respected": "",
+      "strict_invariant": "True",
+      "unauthorized_private_hits": "0",
+      "budgeted_hits": "0",
+      "authorized_public_hits": "0",
+      "budget_scope": "private",
+      "public_ready_before_workload": "0",
+      "materialization_requests": "0",
+      "public_created": "0",
+      "public_aliases_victim": "0",
+      "verdict": "pass"
+    },
+    {
+      "ablation_step": "3",
+      "step_name": "candidate_detection",
+      "n_cycles": "20",
+      "budget_B": "10",
+      "total_xt_hits": "0",
+      "first_xt_hit_cycle": "-1",
+      "max_xt_hits_per_cycle": "0",
+      "budgeted_respected": "",
+      "strict_invariant": "True",
+      "unauthorized_private_hits": "0",
+      "budgeted_hits": "0",
+      "authorized_public_hits": "0",
+      "budget_scope": "private",
+      "public_ready_before_workload": "0",
+      "materialization_requests": "0",
+      "public_created": "0",
+      "public_aliases_victim": "0",
+      "verdict": "pass"
+    },
+    {
+      "ablation_step": "4",
+      "step_name": "balanced_in_node",
+      "n_cycles": "20",
+      "budget_B": "10",
+      "total_xt_hits": "200",
+      "first_xt_hit_cycle": "0",
+      "max_xt_hits_per_cycle": "10",
+      "budgeted_respected": "True",
+      "strict_invariant": "True",
+      "unauthorized_private_hits": "0",
+      "budgeted_hits": "200",
+      "authorized_public_hits": "0",
+      "budget_scope": "per_residency",
+      "public_ready_before_workload": "0",
+      "materialization_requests": "0",
+      "public_created": "0",
+      "public_aliases_victim": "0",
+      "verdict": "pass"
+    },
+    {
+      "ablation_step": "5",
+      "step_name": "balanced_durable_ledger",
+      "n_cycles": "20",
+      "budget_B": "10",
+      "total_xt_hits": "10",
+      "first_xt_hit_cycle": "0",
+      "max_xt_hits_per_cycle": "10",
+      "budgeted_respected": "True",
+      "strict_invariant": "True",
+      "unauthorized_private_hits": "0",
+      "budgeted_hits": "10",
+      "authorized_public_hits": "0",
+      "budget_scope": "per_accounting_epoch",
+      "public_ready_before_workload": "0",
+      "materialization_requests": "0",
+      "public_created": "0",
+      "public_aliases_victim": "0",
+      "verdict": "pass"
+    },
+    {
+      "ablation_step": "6",
+      "step_name": "operator_auth_no_prewarm",
+      "n_cycles": "20",
+      "budget_B": "10",
+      "total_xt_hits": "240",
+      "first_xt_hit_cycle": "0",
+      "max_xt_hits_per_cycle": "12",
+      "budgeted_respected": "",
+      "strict_invariant": "True",
+      "unauthorized_private_hits": "0",
+      "budgeted_hits": "0",
+      "authorized_public_hits": "240",
+      "budget_scope": "authorized_public",
+      "public_ready_before_workload": "0",
+      "materialization_requests": "1",
+      "public_created": "1",
+      "public_aliases_victim": "0",
+      "verdict": "pass"
+    },
+    {
+      "ablation_step": "7",
+      "step_name": "full_registry_prewarm",
+      "n_cycles": "20",
+      "budget_B": "10",
+      "total_xt_hits": "240",
+      "first_xt_hit_cycle": "0",
+      "max_xt_hits_per_cycle": "12",
+      "budgeted_respected": "",
+      "strict_invariant": "True",
+      "unauthorized_private_hits": "0",
+      "budgeted_hits": "0",
+      "authorized_public_hits": "240",
+      "budget_scope": "authorized_public",
+      "public_ready_before_workload": "1",
+      "materialization_requests": "0",
+      "public_created": "1",
+      "public_aliases_victim": "0",
+      "verdict": "pass"
+    }
+  ],
+  "empirical_evidence": {
+    "private_namespace": {
+      "membership_auc_range": [
+        0.51,
+        0.605
+      ],
+      "system_prompt_overhead_pct_range": [
+        -27.0,
+        6.0
+      ],
+      "multi_turn_throughput_ratio_range": [
+        0.87,
+        1.21
+      ]
+    },
+    "budgeted_reuse": {
+      "membership_auc_range": [
+        0.787,
+        0.83
+      ],
+      "system_prompt_overhead_pct_range": [
+        -4.0,
+        13.0
+      ],
+      "multi_turn_throughput_ratio_range": [
+        0.96,
+        1.09
+      ]
+    },
+    "reactive_public": {
+      "auc_range": [
+        0.949,
+        1.0
+      ],
+      "delta_ttft_ms_range": [
+        9.2,
+        17.3
+      ]
+    },
+    "prewarmed_public": {
+      "auc_range": [
+        0.5,
+        0.598
+      ],
+      "delta_ttft_ms_range": [
+        -0.6,
+        0.7
+      ],
+      "system_prompt_overhead_pct_range": [
+        -26.0,
+        4.0
+      ],
+      "multi_turn_throughput_ratio_range": [
+        0.94,
+        1.08
+      ]
+    }
+  },
+  "serialized_metadata": {
+    "public_authorization_bytes": 379,
+    "registry_bytes_per_entry_at_100": 398.1,
+    "ledger_bytes_per_entry_at_1000": 84.9
+  }
+}

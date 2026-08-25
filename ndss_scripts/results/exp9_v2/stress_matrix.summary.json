@@ -1,0 +1,12 @@
+{
+  "total_cells": 384,
+  "pass_cells": 384,
+  "max_durable_charges": 10,
+  "max_overshoot": 0,
+  "max_lost_charges": 0,
+  "max_duplicated_charges": 0,
+  "max_unused_conservative_charges": 1,
+  "served_before_recovery": 0,
+  "recovery_p50_us": 187.37325444817543,
+  "recovery_p99_us": 270.40764689445496
+}

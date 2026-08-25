@@ -1,0 +1,13 @@
+{
+  "model": "phi4",
+  "B": 150,
+  "workload": "system_prompt_no_public",
+  "n_users": 20,
+  "n_measured": 18,
+  "ttft_s": 0.35123553049884826,
+  "tps": 14.469626434097934,
+  "reuse_hit_rate": 0.0,
+  "prompt_tokens": 1731,
+  "cached_tokens": 0,
+  "source": "measure_reuse_b_cell.py"
+}

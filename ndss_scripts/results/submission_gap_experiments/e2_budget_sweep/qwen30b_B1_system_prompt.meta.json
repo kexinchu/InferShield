@@ -1,0 +1,18 @@
+{
+  "access_budget_B": 1,
+  "safekv_mode": "balanced",
+  "source_csv": "qwen30b_B1_system_prompt.csv",
+  "row": {
+    "model": "qwen30b",
+    "policy": "balanced",
+    "workload": "system_prompt",
+    "n_users": "20",
+    "rps": "8.0",
+    "n_requests": "15",
+    "mean_ttft_ms": "1432.3103801657755",
+    "p50_ttft_ms": "1505.0021978095174",
+    "p95_ttft_ms": "2147.9805251583457",
+    "p99_ttft_ms": "2147.9805251583457",
+    "throughput_tok_s": "46.93826081388628"
+  }
+}

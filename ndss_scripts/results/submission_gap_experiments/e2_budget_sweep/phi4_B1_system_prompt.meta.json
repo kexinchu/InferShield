@@ -1,0 +1,18 @@
+{
+  "access_budget_B": 1,
+  "safekv_mode": "balanced",
+  "source_csv": "phi4_B1_system_prompt.csv",
+  "row": {
+    "model": "phi4",
+    "policy": "balanced",
+    "workload": "system_prompt",
+    "n_users": "20",
+    "rps": "8.0",
+    "n_requests": "15",
+    "mean_ttft_ms": "274.7823681682348",
+    "p50_ttft_ms": "258.46476946026087",
+    "p95_ttft_ms": "416.10267013311386",
+    "p99_ttft_ms": "416.10267013311386",
+    "throughput_tok_s": "55.6659309826299"
+  }
+}

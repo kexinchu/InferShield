@@ -1,0 +1,77 @@
+{
+  "experiment": "e5_strong_recovery",
+  "cells": [
+    {
+      "model": "phi4",
+      "recovery_mode": "guaranteed",
+      "access_budget_B": 100,
+      "token_recovery_fraction": 0.0,
+      "full_secret_recovery_fraction": 0.0,
+      "tokens_attempted": 50,
+      "tokens_recovered": 0,
+      "n_rec_trials": 10,
+      "attacker_queries_used_recovery": 21,
+      "setup_prior_queries": 0
+    },
+    {
+      "model": "phi4",
+      "recovery_mode": "logit_topk",
+      "access_budget_B": 100,
+      "token_recovery_fraction": 0.0,
+      "full_secret_recovery_fraction": 0.0,
+      "tokens_attempted": 50,
+      "tokens_recovered": 0,
+      "n_rec_trials": 10,
+      "attacker_queries_used_recovery": 13,
+      "setup_prior_queries": 50
+    },
+    {
+      "model": "qwen30b",
+      "recovery_mode": "guaranteed",
+      "access_budget_B": 100,
+      "token_recovery_fraction": 0.02,
+      "full_secret_recovery_fraction": 0.0,
+      "tokens_attempted": 50,
+      "tokens_recovered": 1,
+      "n_rec_trials": 10,
+      "attacker_queries_used_recovery": 11,
+      "setup_prior_queries": 0
+    },
+    {
+      "model": "qwen30b",
+      "recovery_mode": "logit_topk",
+      "access_budget_B": 100,
+      "token_recovery_fraction": 0.0,
+      "full_secret_recovery_fraction": 0.0,
+      "tokens_attempted": 50,
+      "tokens_recovered": 0,
+      "n_rec_trials": 10,
+      "attacker_queries_used_recovery": 14,
+      "setup_prior_queries": 50
+    },
+    {
+      "model": "qwen32b",
+      "recovery_mode": "guaranteed",
+      "access_budget_B": 100,
+      "token_recovery_fraction": 0.02,
+      "full_secret_recovery_fraction": 0.0,
+      "tokens_attempted": 50,
+      "tokens_recovered": 1,
+      "n_rec_trials": 10,
+      "attacker_queries_used_recovery": 11,
+      "setup_prior_queries": 0
+    },
+    {
+      "model": "qwen32b",
+      "recovery_mode": "logit_topk",
+      "access_budget_B": 100,
+      "token_recovery_fraction": 0.0,
+      "full_secret_recovery_fraction": 0.0,
+      "tokens_attempted": 50,
+      "tokens_recovered": 0,
+      "n_rec_trials": 10,
+      "attacker_queries_used_recovery": 15,
+      "setup_prior_queries": 50
+    }
+  ]
+}

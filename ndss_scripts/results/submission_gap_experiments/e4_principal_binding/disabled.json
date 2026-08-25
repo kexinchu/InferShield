@@ -1,0 +1,11 @@
+{
+  "phase": "disabled",
+  "binding_enabled": false,
+  "attacker_supplied_user_id_for_spoof": "victim",
+  "spoof_cached_tokens": 228,
+  "honest_attacker_cached_tokens": 0,
+  "cache_hit_evidence_available": true,
+  "effective_principal_endpoint_status": 404,
+  "effective_principal": null,
+  "negative_control_pass": true
+}

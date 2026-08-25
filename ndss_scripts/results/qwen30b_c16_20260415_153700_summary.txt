@@ -1,0 +1,37 @@
+
+======================================================================
+  BENCHMARK RESULTS — qwen30b
+  Time: 2026-04-15 15:37:00
+======================================================================
+  Successful / Total:  200 / 200  (errors=0)
+  Wall clock time:     326.39s
+  Concurrency:         16
+
+--- Latency (ms) ---
+  TTFT                : avg= 1075.18  p50= 1002.23  p95= 2037.58  p99= 2414.81  min=  448.47  max= 2586.79
+  TPOT                : avg=  201.27  p50=  202.25  p95=  210.04  p99=  217.36  min=  122.83  max=  281.31
+  Total_Time          : avg=25655.71  p50=26637.60  p95=27822.10  p99=27846.41  min= 2451.23  max=27851.48
+
+--- Tokens ---
+  Input_Tokens        : avg= 1709.97  p50= 1924.50  p95= 2438.50  p99= 2678.14  min=  146.00  max= 2826.00
+  Output_Tokens       : avg=  123.31  p50=  128.00  p95=  128.00  p99=  128.00  min=    1.00  max=  128.00
+
+--- Throughput ---
+  TPS (tok/s)         : avg=    4.78  p50=    4.80  p95=    4.98  p99=    6.49  min=    0.36  max=    7.93
+  Aggregate TPS       : 75.56 tok/s
+
+--- KV Cache ---
+  KV capacity (tokens):  298,242
+  mem_fraction_static:   0.9
+  context_length:        32,768
+  tensor_parallel_size:  2
+  KV used (peak):        32,716 tok  (0.0% of capacity)
+  KV used (avg):         26,514 tok
+
+--- GPU ---
+  GPU Mem Used (avg):  45208 MiB
+  GPU Mem Used (max):  45208 MiB
+  GPU Power (avg):     132.5 W
+  GPU Power (max):     299.1 W
+  GPU Samples:         606
+======================================================================

@@ -1,0 +1,8 @@
+{
+  "model": "llama70b_awq",
+  "ok": true,
+  "elapsed_s": 7.276,
+  "text": " Ready... stop. Ready... stop.",
+  "prompt_tokens": 8,
+  "completion_tokens": 8
+}

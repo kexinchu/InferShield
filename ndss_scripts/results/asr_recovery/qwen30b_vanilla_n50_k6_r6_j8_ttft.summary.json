@@ -1,0 +1,29 @@
+{
+  "n_rec_trials": 50,
+  "tokens_attempted": 250,
+  "tokens_recovered": 237,
+  "asr_tok": 0.948,
+  "asr_tok_oracle": 0.948,
+  "asr_tok_ttft_only": 0.948,
+  "asr_sec": 0.8,
+  "full_secrets": 40,
+  "attacker_queries_used_recovery": 15000,
+  "req_per_token": 60.0,
+  "n_token_decisions": 250,
+  "token_decisions_correct": 237,
+  "asr_tok_from_positions": 0.948,
+  "model": "qwen30b",
+  "policy": "vanilla",
+  "access_budget_B": -1,
+  "recovery_mode": "guaranteed",
+  "repeats": 6,
+  "vocab_sample": 6,
+  "rtt_jitter_ms": 8.0,
+  "decision": "ttft_only",
+  "promptpeek_ref": {
+    "input_asr": 0.99,
+    "template_asr": 0.98,
+    "whole_prompt_asr": 0.95,
+    "req_per_token": "148-306"
+  }
+}

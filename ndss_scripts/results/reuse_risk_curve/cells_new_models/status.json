@@ -1,0 +1,39 @@
+{
+  "downloaded": {
+    "DeepSeek-R1-Distill-Qwen-32B": {
+      "path": "/workspace/Models/DeepSeek-R1-Distill-Qwen-32B",
+      "ok": true
+    },
+    "Llama-3.3-70B-Instruct-FP8": {
+      "path": "/workspace/Models/Llama-3.3-70B-Instruct-FP8",
+      "ok": true,
+      "loadable_on_a6000": false
+    },
+    "Llama-3.3-70B-Instruct-AWQ": {
+      "path": "/workspace/Models/Llama-3.3-70B-Instruct-AWQ",
+      "repo": "casperhansen/llama-3.3-70b-instruct-awq",
+      "size_gb": 38,
+      "shards": "9/9",
+      "ok": true,
+      "loadable_on_a6000": true
+    }
+  },
+  "tests": {
+    "ds_r1_qwen32b": {
+      "smoke": true,
+      "B0_reuse_hit_rate": 0.0,
+      "B100_reuse_hit_rate": 0.004754754754754755,
+      "B150_reuse_hit_rate": 0.004754754754754755
+    },
+    "llama70b_fp8": {
+      "smoke": false,
+      "load_error": "modelopt FP8 requires SM>=89; A6000 is 86"
+    },
+    "llama70b_awq": {
+      "smoke": true,
+      "B0_reuse_hit_rate": 0.0,
+      "B100_reuse_hit_rate": 0.004754754754754755,
+      "B150_reuse_hit_rate": 0.9632132132132132
+    }
+  }
+}

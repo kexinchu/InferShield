@@ -1,0 +1,41 @@
+{
+  "model": "qwen32b",
+  "B": 0,
+  "workload": "benign_system_prompt_no_public",
+  "n_users": 20,
+  "n_measured": 19,
+  "admit_wait_s": 15.0,
+  "admit_waited_s": 15.0,
+  "visibility_counts": {
+    "private": 5
+  },
+  "owner_cached_tokens": 0,
+  "same_user_cached_tokens": 210,
+  "ttft_s": 1.2954310412100503,
+  "reuse_hit_rate": 0.0,
+  "prompt_tokens": 3977,
+  "cached_tokens": 0,
+  "probe_cached": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "admission": "experiment_autoshare",
+  "source": "measure_reuse_b_cell.py"
+}

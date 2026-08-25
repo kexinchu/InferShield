@@ -1,0 +1,9 @@
+{
+  "token_recovery_fraction": 0.0,
+  "tokens_attempted": 50,
+  "tokens_recovered": 0,
+  "n_rec_trials": 10,
+  "full_secret_recovery_fraction": 0.0,
+  "attacker_queries_used_recovery": 21,
+  "setup_prior_queries": 0
+}

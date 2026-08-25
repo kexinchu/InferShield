@@ -1,0 +1,37 @@
+
+======================================================================
+  BENCHMARK RESULTS — phi4
+  Time: 2026-04-15 17:24:25
+======================================================================
+  Successful / Total:  200 / 200  (errors=0)
+  Wall clock time:     162.37s
+  Concurrency:         32
+
+--- Latency (ms) ---
+  TTFT                : avg= 2059.44  p50= 1291.00  p95= 7095.34  p99= 7743.13  min=  353.14  max= 7878.25
+  TPOT                : avg=  190.60  p50=  192.35  p95=  217.62  p99=  233.76  min=   90.24  max=  252.47
+  Total_Time          : avg=25230.25  p50=26263.44  p95=31202.72  p99=31275.78  min= 8164.43  max=31284.49
+
+--- Tokens ---
+  Input_Tokens        : avg= 1677.19  p50= 1893.50  p95= 2398.15  p99= 2606.36  min=  138.00  max= 2675.00
+  Output_Tokens       : avg=  122.49  p50=  128.00  p95=  128.00  p99=  128.00  min=   30.00  max=  128.00
+
+--- Throughput ---
+  TPS (tok/s)         : avg=    4.93  p50=    4.86  p95=    6.44  p99=    9.02  min=    3.05  max=   10.33
+  Aggregate TPS       : 150.88 tok/s
+
+--- KV Cache ---
+  KV capacity (tokens):  79,158
+  mem_fraction_static:   0.9
+  context_length:        16,384
+  tensor_parallel_size:  1
+  KV used (peak):        40,790 tok  (0.0% of capacity)
+  KV used (avg):         25,102 tok
+
+--- GPU ---
+  GPU Mem Used (avg):  45469 MiB
+  GPU Mem Used (max):  45584 MiB
+  GPU Power (avg):     227.4 W
+  GPU Power (max):     299.4 W
+  GPU Samples:         302
+======================================================================

@@ -1,0 +1,13 @@
+{
+  "model": "qwen30b",
+  "B": 10,
+  "workload": "system_prompt_no_public",
+  "n_users": 20,
+  "n_measured": 18,
+  "ttft_s": 3.9861561710555784,
+  "tps": 14.177653538195107,
+  "reuse_hit_rate": 0.0,
+  "prompt_tokens": 1828,
+  "cached_tokens": 0,
+  "source": "measure_reuse_b_cell.py"
+}

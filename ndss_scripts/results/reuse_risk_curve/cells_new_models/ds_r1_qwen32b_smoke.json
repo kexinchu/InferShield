@@ -1,0 +1,8 @@
+{
+  "model": "ds_r1_qwen32b",
+  "ok": true,
+  "elapsed_s": 4.649,
+  "text": " Then, say the word go and stop",
+  "prompt_tokens": 8,
+  "completion_tokens": 8
+}

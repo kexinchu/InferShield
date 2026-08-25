@@ -1,0 +1,43 @@
+{
+  "experiment": "e4_principal_binding",
+  "manifest": {
+    "experiment": "e4_principal_binding",
+    "backbone": "phi4",
+    "safekv_mode": "strict",
+    "phases": {
+      "disabled": {
+        "phase": "disabled",
+        "binding_enabled": false,
+        "attacker_supplied_user_id_for_spoof": "victim",
+        "spoof_cached_tokens": 228,
+        "honest_attacker_cached_tokens": 0,
+        "cache_hit_evidence_available": true,
+        "effective_principal_endpoint_status": 404,
+        "effective_principal": null,
+        "negative_control_pass": true
+      },
+      "enabled": {
+        "phase": "enabled",
+        "binding_enabled": true,
+        "attacker_supplied_user_id_for_spoof": "victim",
+        "spoof_cached_tokens": 0,
+        "honest_attacker_cached_tokens": 0,
+        "cache_hit_evidence_available": true,
+        "effective_principal_endpoint_status": 200,
+        "effective_principal": "attacker",
+        "rejections": {
+          "native_missing": 401,
+          "native_unknown": 401,
+          "openai_missing": 401,
+          "openai_unknown": 401
+        },
+        "positive_control_pass": true
+      }
+    },
+    "model_scope": "Principal authentication and namespace selection occur before model scheduling and cache lookup; this trust-boundary behavior is model-independent, so one backbone is sufficient.",
+    "tokens_recorded": false,
+    "negative_control_pass": true,
+    "positive_control_pass": true
+  },
+  "complete": true
+}

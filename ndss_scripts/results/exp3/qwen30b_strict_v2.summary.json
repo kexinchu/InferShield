@@ -1,0 +1,22 @@
+{
+  "n_mi_trials": 100,
+  "n_pos": 50,
+  "n_neg": 50,
+  "accuracy": 0.53,
+  "accuracy_ci_lo": 0.4329,
+  "accuracy_ci_hi": 0.6249,
+  "tpr": 1.0,
+  "tpr_ci_lo": 0.9286,
+  "tpr_ci_hi": 1.0,
+  "fpr": 0.94,
+  "fpr_ci_lo": 0.8378,
+  "fpr_ci_hi": 0.9794,
+  "adv_mi": 0.06,
+  "adv_mi_ci_lo": 0.0,
+  "adv_mi_ci_hi": 0.1364,
+  "roc_auc": 0.6052,
+  "token_recovery_fraction": 0.0,
+  "tokens_attempted": 50,
+  "tokens_recovered": 0,
+  "n_rec_trials": 10
+}

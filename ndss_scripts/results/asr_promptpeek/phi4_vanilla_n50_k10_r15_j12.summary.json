@@ -1,0 +1,25 @@
+{
+  "n_rec_trials": 50,
+  "tokens_attempted": 250,
+  "tokens_recovered": 38,
+  "asr_tok": 0.152,
+  "open_set_coverage": 0.676,
+  "asr_sec": 0.0,
+  "full_secrets": 0,
+  "attacker_queries_used_recovery": 37500,
+  "req_per_token": 150.0,
+  "n_token_decisions": 250,
+  "asr_tok_from_positions": 0.152,
+  "promptpeek_ref": {
+    "input_asr": 0.99,
+    "template_asr": 0.98,
+    "whole_prompt_asr": 0.95,
+    "req_per_token": "148-306"
+  },
+  "model": "phi4",
+  "policy": "vanilla",
+  "protocol": "promptpeek_aligned",
+  "vocab_k": 10,
+  "repeats": 15,
+  "rtt_jitter_ms": 12.0
+}

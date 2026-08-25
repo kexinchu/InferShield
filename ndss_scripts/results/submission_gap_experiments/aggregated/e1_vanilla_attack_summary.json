@@ -1,0 +1,44 @@
+{
+  "experiment": "e1_vanilla_attack",
+  "cells": [
+    {
+      "model": "phi4",
+      "policy": "vanilla",
+      "roc_auc": 0.7982,
+      "roc_auc_ci_lo": 0.7062,
+      "roc_auc_ci_hi": 0.8808,
+      "adv_mi": 0.3,
+      "adv_mi_ci_lo": 0.1293,
+      "adv_mi_ci_hi": 0.4758,
+      "tpr": 0.86,
+      "fpr": 0.56,
+      "n_mi_trials": 100
+    },
+    {
+      "model": "qwen30b",
+      "policy": "vanilla",
+      "roc_auc": 0.6142,
+      "roc_auc_ci_lo": 0.4956,
+      "roc_auc_ci_hi": 0.7208,
+      "adv_mi": 0.0,
+      "adv_mi_ci_lo": 0.0,
+      "adv_mi_ci_hi": 0.0,
+      "tpr": 1.0,
+      "fpr": 1.0,
+      "n_mi_trials": 100
+    },
+    {
+      "model": "qwen32b",
+      "policy": "vanilla",
+      "roc_auc": 0.706,
+      "roc_auc_ci_lo": 0.6,
+      "roc_auc_ci_hi": 0.8124,
+      "adv_mi": 0.0,
+      "adv_mi_ci_lo": 0.0,
+      "adv_mi_ci_hi": 0.0,
+      "tpr": 1.0,
+      "fpr": 1.0,
+      "n_mi_trials": 100
+    }
+  ]
+}

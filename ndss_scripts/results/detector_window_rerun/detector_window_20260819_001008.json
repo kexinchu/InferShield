@@ -1,0 +1,73 @@
+{
+  "config": {
+    "n": 500,
+    "min_len": 20,
+    "seed": 42,
+    "batch_size": 16,
+    "models": [
+      "Phi-4-14B",
+      "Qwen3-30B-A3B",
+      "Qwen3-32B",
+      "Llama-3.3-70B-Instruct"
+    ],
+    "out_dir": "/workspace/ndss_scripts/results/detector_window_rerun"
+  },
+  "models": {
+    "Phi-4-14B": {
+      "model": "Phi-4-14B",
+      "n": 500,
+      "tier1": 226,
+      "tier2": 274,
+      "budget_fn": 0,
+      "tier1_pct": 45.2,
+      "tier2_pct": 54.8,
+      "budget_pct": 0.0,
+      "detector_recall_pct": 100.0,
+      "protocol_coverage_pct": 100.0,
+      "tokenizer": "/workspace/Models/Phi-4",
+      "sample_detect_text": "<|im_start|>user<|im_sep|>Respected Dr. James, as the head surgeon, kindly ensure the MAC surgical tools for the surgery on 05/11/1901 are well sterilized befor"
+    },
+    "Qwen3-30B-A3B": {
+      "model": "Qwen3-30B-A3B",
+      "n": 500,
+      "tier1": 226,
+      "tier2": 256,
+      "budget_fn": 18,
+      "tier1_pct": 45.2,
+      "tier2_pct": 51.2,
+      "budget_pct": 3.6,
+      "detector_recall_pct": 96.4,
+      "protocol_coverage_pct": 100.0,
+      "tokenizer": "/workspace/Models/Qwen3-30B-A3B-Instruct-2507",
+      "sample_detect_text": "Respected Dr. James, as the head surgeon, kindly ensure the MAC surgical tools for the surgery on 05/11/1901 are well sterilized before the procedure. The assoc"
+    },
+    "Qwen3-32B": {
+      "model": "Qwen3-32B",
+      "n": 500,
+      "tier1": 226,
+      "tier2": 256,
+      "budget_fn": 18,
+      "tier1_pct": 45.2,
+      "tier2_pct": 51.2,
+      "budget_pct": 3.6,
+      "detector_recall_pct": 96.4,
+      "protocol_coverage_pct": 100.0,
+      "tokenizer": "/workspace/Models/Qwen3-32B",
+      "sample_detect_text": "Respected Dr. James, as the head surgeon, kindly ensure the MAC surgical tools for the surgery on 05/11/1901 are well sterilized before the procedure. The assoc"
+    },
+    "Llama-3.3-70B-Instruct": {
+      "model": "Llama-3.3-70B-Instruct",
+      "n": 500,
+      "tier1": 226,
+      "tier2": 202,
+      "budget_fn": 72,
+      "tier1_pct": 45.2,
+      "tier2_pct": 40.4,
+      "budget_pct": 14.4,
+      "detector_recall_pct": 85.6,
+      "protocol_coverage_pct": 100.0,
+      "tokenizer": "/workspace/Models/Llama-3.1-8B-Instruct",
+      "sample_detect_text": "Respected Dr. James, as the head surgeon, kindly ensure the MAC surgical tools for the surgery on 05/11/1901 are well sterilized before the procedure. The assoc"
+    }
+  }
+}

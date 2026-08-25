@@ -1,0 +1,23 @@
+SafeKV 10k Benchmark Report
+======================================================================
+
+ PII% |     TTFT      P50      P95 |  Cache%  MaxUsg |    QPS |  PIIReuse
+-------------------------------------------------------------------------
+   0% |  9089.5  9161.9 10029.2 |   1.48%  32.00% | 961.7 |   0.0000
+  10% |  8983.6  9056.6  9803.7 |   1.50%  32.00% | 1006.0 |   1.0000
+  25% |  9031.6  9101.2  9878.6 |   1.39%  32.00% | 974.7 |   0.9938
+  50% |  9117.8  9197.8  9973.7 |   1.34%  33.00% | 964.1 |   0.9945
+  75% |  9214.5  9279.1 10109.0 |   1.24%  34.00% | 1005.6 |   0.9938
+ 100% |  9283.8  9348.9 10179.0 |   1.22%  35.00% | 951.6 |   0.0000
+
+======================================================================
+Column description:
+  PII%      : fraction of queries with injected PII
+  TTFT      : mean time-to-first-token (ms)
+  P50/P95   : latency percentiles (ms)
+  Cache%    : KV-cache hit rate (cached_tokens / total_tokens)
+  MaxUsg    : peak KV-cache memory usage fraction
+  QPS       : queries per second
+  PIIReuse  : cross-tenant PII reuse ratio
+              (clean_dup_lat / pii_dup_lat; ~1.0 = PII leaking,
+               <1.0 or >>1.0 = PII isolated)

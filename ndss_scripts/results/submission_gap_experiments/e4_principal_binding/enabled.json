@@ -1,0 +1,17 @@
+{
+  "phase": "enabled",
+  "binding_enabled": true,
+  "attacker_supplied_user_id_for_spoof": "victim",
+  "spoof_cached_tokens": 0,
+  "honest_attacker_cached_tokens": 0,
+  "cache_hit_evidence_available": true,
+  "effective_principal_endpoint_status": 200,
+  "effective_principal": "attacker",
+  "rejections": {
+    "native_missing": 401,
+    "native_unknown": 401,
+    "openai_missing": 401,
+    "openai_unknown": 401
+  },
+  "positive_control_pass": true
+}
