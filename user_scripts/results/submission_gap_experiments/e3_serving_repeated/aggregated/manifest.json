@@ -1,0 +1,151 @@
+{
+  "experiment": {
+    "id": "submission-gap-e3-serving-repeated",
+    "description": "Repeated serving performance measurements built around user_scripts/exp5_serving_perf.py",
+    "repository_revision_at_setup": "d9e5c67e56326b4bf0d5a6aff19a5b864d5cdd2b",
+    "paper_files_modified": false
+  },
+  "hardware": {
+    "hostname": "anonymous-host",
+    "kernel": "Linux 7.1.1 x86_64",
+    "cpu": {
+      "model": "Intel(R) Xeon(R) Gold 6338 CPU @ 2.00GHz",
+      "sockets": 2,
+      "physical_cores_total": 64,
+      "threads_per_core": 1
+    },
+    "system_memory_bytes": 1077589323776,
+    "gpus": [
+      {
+        "index": 0,
+        "name": "NVIDIA RTX A6000",
+        "uuid": "GPU-9dbed927-f5be-f3cb-e181-618127b4b032",
+        "memory_mib": 49140
+      },
+      {
+        "index": 1,
+        "name": "NVIDIA RTX A6000",
+        "uuid": "GPU-918f9914-b0b5-8876-fabc-66917c5a5cfe",
+        "memory_mib": 49140
+      }
+    ],
+    "nvidia_driver": "595.71.05"
+  },
+  "software": {
+    "python": "3.10.20",
+    "pytorch": "2.6.0+cu124",
+    "transformers": "4.51.1",
+    "server_entrypoint": "python -m sglang.launch_server"
+  },
+  "models": {
+    "phi4": {
+      "path": "/workspace/Models/Phi-4",
+      "tensor_parallel_size": 1,
+      "gpu_indices": [0],
+      "context_length": 16384
+    },
+    "qwen30b": {
+      "path": "/workspace/Models/Qwen3-30B-A3B-Instruct-2507",
+      "tensor_parallel_size": 2,
+      "gpu_indices": [0, 1],
+      "context_length": 32768
+    },
+    "qwen32b": {
+      "path": "/workspace/Models/Qwen3-32B",
+      "tensor_parallel_size": 2,
+      "gpu_indices": [0, 1],
+      "context_length": 32768
+    }
+  },
+  "protocol": {
+    "repetitions": 3,
+    "expected_measured_or_emulated_cells": 39,
+    "expected_raw_repetition_rows": 117,
+    "independence": "Each repetition uses a distinct seed, a fresh server process for each model/runtime-mode group, and a cache flush before every measured cell.",
+    "seeds_by_repetition": {
+      "1": 20260821,
+      "2": 20260822,
+      "3": 20260823
+    },
+    "rps": 8,
+    "n_users": 20,
+    "max_new_tokens": 64,
+    "warmup_requests_excluded": 5,
+    "workloads": [
+      "single_pii",
+      "multi_turn",
+      "system_prompt"
+    ],
+    "dataset": "/workspace/datasets/english_pii_43k.jsonl",
+    "request_scheduling": "Open-loop dispatch with 1/rps spacing and asynchronous response collection.",
+    "ttft": "Milliseconds from HTTP request start until arrival of the first streamed output-token chunk; per-repetition cell statistic is the arithmetic mean after warmup exclusion.",
+    "throughput": "Measured output tokens after warmup exclusion divided by wall-clock seconds from first dispatch until all requests complete; the denominator conservatively includes warmup time.",
+    "aggregation": "Per-cell arithmetic mean, sample standard deviation, and two-sided 95% Student t confidence interval across the three independent repetitions (df=2, t*=4.302652729911275).",
+    "server_common_options": {
+      "dtype": "bfloat16",
+      "attention_backend": "torch_native",
+      "cuda_graph": "disabled",
+      "mem_fraction_static": 0.8,
+      "schedule_policy": "fcfs",
+      "policy_epoch": 1
+    },
+    "output_isolation": {
+      "root": "user_scripts/results/submission_gap_experiments/e3_serving_repeated",
+      "raw_measurements_and_sentinels": "runs",
+      "summaries_and_manifest": "aggregated",
+      "server_and_client_logs": "logs"
+    }
+  },
+  "policy_mapping": {
+    "vanilla": {
+      "evidence": "measured",
+      "server_mode": "none",
+      "configured_access_budget": 100,
+      "effective_access_budget": null,
+      "public_prefix_prewarm": false
+    },
+    "strict": {
+      "evidence": "measured",
+      "server_mode": "strict",
+      "configured_access_budget": 100,
+      "effective_access_budget": null,
+      "public_prefix_prewarm": false
+    },
+    "balanced": {
+      "evidence": "measured",
+      "server_mode": "balanced",
+      "configured_access_budget": 100,
+      "effective_access_budget": 100,
+      "public_prefix_prewarm": false
+    },
+    "balanced_public": {
+      "evidence": "measured",
+      "server_mode": "balanced",
+      "configured_access_budget": 100,
+      "effective_access_budget": 100,
+      "public_prefix_prewarm": "For system_prompt only: operator-authorized Verified-Public system prefix is installed after cache flush. Other workloads run independently under balanced mode without a public prefix."
+    },
+    "shared_system_prompt_emulation": {
+      "evidence": "explicit_emulation",
+      "label": "Shared System Prompt baseline (emulated)",
+      "applicable_workloads": ["system_prompt"],
+      "server_mode": "strict",
+      "configured_access_budget": 100,
+      "effective_access_budget": null,
+      "public_prefix_prewarm": "Operator-authorized Verified-Public fixed system prefix is installed after cache flush; only that prefix is shared, while each request carries a user-specific private suffix.",
+      "interpretation": "Emulates fixed shared system-prefix plus private-suffix semantics; it is not presented as a native separately implemented policy."
+    },
+    "cache_partition": {
+      "evidence": "alias_only",
+      "alias_of": "strict",
+      "server_mode": "strict",
+      "reason": "The available cache-partition mapping is the same per-principal strict runtime. It is recorded as an alias and is not rerun or emitted as independent numeric evidence."
+    },
+    "CacheSolidarity": {
+      "evidence": "unavailable",
+      "status": "not implemented",
+      "numeric_cells": false,
+      "reason": "No runnable CacheSolidarity implementation is available in this repository; no measurements are fabricated."
+    }
+  }
+}

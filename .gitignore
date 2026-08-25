@@ -59,7 +59,7 @@ cover/
 *.log
 *.pid
 *.lock
-ndss_scripts/logs/
+user_scripts/logs/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal

@@ -1,8 +1,0 @@
-{
-  "e1_cells": 3,
-  "e2_cells": 15,
-  "e3_complete": true,
-  "e4_complete": true,
-  "e5_cells": 6,
-  "output_dir": "/workspace/ndss_scripts/results/submission_gap_experiments/aggregated"
-}

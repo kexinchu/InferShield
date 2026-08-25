@@ -1,0 +1,280 @@
+{
+  "status": "reuse_on_off_measured",
+  "description": "Membership AUC is paper-of-record. Serving TTFT is still tab:hyperparam. reuse_hit_rate is from the experiment_autoshare grid (19 probes). That grid is an on/off check, not a B-knee: demand is below B for every B>=10.",
+  "autoshare_run": {
+    "admission": "experiment_autoshare",
+    "n_probes": 19,
+    "result": "B=0 reuse 0.0; B>=10 reuse ~0.96 on all three models. Do not treat as the B*=100 knee.",
+    "limit": "19 probes cannot exhaust B in {10,50,100,150,200}, so the reuse axis is flat once sharing is on."
+  },
+  "invalid_run": {
+    "dir": "user_scripts/results/reuse_risk_curve/cells_invalid_pii_async",
+    "reason": "Shared prefix taken from english_pii_43k.jsonl (detector keeps Private) and requests were sent before async Candidate admission, so cached_tokens=0 for all 18 cells."
+  },
+  "recommended_B_star": 100,
+  "sources": {
+    "membership": "budget operating points and end-to-end attack tables",
+    "serving_ttft": "serving hyperparameter table",
+    "sglang_auc": "end-to-end attack table"
+  },
+  "missing": [
+    "serving TTFT/TPS at B in {0, 10, 150} on the same harness as tab:hyperparam",
+    "explicit reuse_hit_rate = cached_tokens / prompt_tokens (and Budgeted-Shared hit count) at B in {0, 10, 50, 100, 150, 200}",
+    "SGLang unbounded and Cache-Partition reuse_hit_rate anchors on the same workload"
+  ],
+  "protocol": {
+    "membership": "n=100, Q=200, A=2, 2xA6000",
+    "serving_needed": "Balanced without Registry on a non-sensitive shared system prompt; owner insert, wait for Candidate, then cross-tenant probes. Do not use SafeKV-full/Public or PII text as the shared prefix."
+  },
+  "models": {
+    "phi4": "Phi-4-14B",
+    "qwen30b": "Qwen3-30B-A3B",
+    "qwen32b": "Qwen3-32B"
+  },
+  "sglang_auc": {
+    "phi4": 0.798,
+    "qwen30b": 0.724,
+    "qwen32b": 0.766
+  },
+  "membership": [
+    {
+      "model": "phi4",
+      "B": 0,
+      "auc": 0.522,
+      "ci_lo": 0.42,
+      "ci_hi": 0.62,
+      "adv_mi": 0.03
+    },
+    {
+      "model": "phi4",
+      "B": 10,
+      "auc": 0.528,
+      "ci_lo": 0.43,
+      "ci_hi": 0.63,
+      "adv_mi": 0.04
+    },
+    {
+      "model": "phi4",
+      "B": 50,
+      "auc": 0.54,
+      "ci_lo": 0.44,
+      "ci_hi": 0.64,
+      "adv_mi": 0.06
+    },
+    {
+      "model": "phi4",
+      "B": 100,
+      "auc": 0.56,
+      "ci_lo": 0.46,
+      "ci_hi": 0.66,
+      "adv_mi": 0.06
+    },
+    {
+      "model": "phi4",
+      "B": 150,
+      "auc": 0.696,
+      "ci_lo": 0.6,
+      "ci_hi": 0.79,
+      "adv_mi": 0.28
+    },
+    {
+      "model": "qwen30b",
+      "B": 0,
+      "auc": 0.505,
+      "ci_lo": 0.4,
+      "ci_hi": 0.61,
+      "adv_mi": 0.0
+    },
+    {
+      "model": "qwen30b",
+      "B": 10,
+      "auc": 0.51,
+      "ci_lo": 0.41,
+      "ci_hi": 0.61,
+      "adv_mi": 0.01
+    },
+    {
+      "model": "qwen30b",
+      "B": 50,
+      "auc": 0.522,
+      "ci_lo": 0.42,
+      "ci_hi": 0.62,
+      "adv_mi": 0.03
+    },
+    {
+      "model": "qwen30b",
+      "B": 100,
+      "auc": 0.545,
+      "ci_lo": 0.44,
+      "ci_hi": 0.65,
+      "adv_mi": 0.03
+    },
+    {
+      "model": "qwen30b",
+      "B": 150,
+      "auc": 0.687,
+      "ci_lo": 0.59,
+      "ci_hi": 0.78,
+      "adv_mi": 0.25
+    },
+    {
+      "model": "qwen32b",
+      "B": 0,
+      "auc": 0.51,
+      "ci_lo": 0.41,
+      "ci_hi": 0.61,
+      "adv_mi": 0.01
+    },
+    {
+      "model": "qwen32b",
+      "B": 10,
+      "auc": 0.516,
+      "ci_lo": 0.42,
+      "ci_hi": 0.62,
+      "adv_mi": 0.02
+    },
+    {
+      "model": "qwen32b",
+      "B": 50,
+      "auc": 0.53,
+      "ci_lo": 0.43,
+      "ci_hi": 0.63,
+      "adv_mi": 0.04
+    },
+    {
+      "model": "qwen32b",
+      "B": 100,
+      "auc": 0.552,
+      "ci_lo": 0.45,
+      "ci_hi": 0.65,
+      "adv_mi": 0.04
+    },
+    {
+      "model": "qwen32b",
+      "B": 150,
+      "auc": 0.73,
+      "ci_lo": 0.63,
+      "ci_hi": 0.83,
+      "adv_mi": 0.31
+    }
+  ],
+  "serving": [
+    {
+      "model": "phi4",
+      "B": 0,
+      "reuse_hit_rate": 0.0
+    },
+    {
+      "model": "phi4",
+      "B": 10,
+      "reuse_hit_rate": 0.9605230072919286
+    },
+    {
+      "model": "phi4",
+      "B": 50,
+      "ttft_s": 0.418,
+      "tps": 222.0,
+      "coverage_pct": 100.0,
+      "reuse_hit_rate": 0.9630374654262006
+    },
+    {
+      "model": "phi4",
+      "B": 100,
+      "ttft_s": 0.388,
+      "tps": 223.0,
+      "coverage_pct": 100.0,
+      "reuse_hit_rate": 0.9630374654262006
+    },
+    {
+      "model": "phi4",
+      "B": 150,
+      "reuse_hit_rate": 0.9630374654262006
+    },
+    {
+      "model": "phi4",
+      "B": 200,
+      "ttft_s": 0.352,
+      "tps": 223.2,
+      "coverage_pct": 100.0,
+      "reuse_hit_rate": 0.9630374654262006
+    },
+    {
+      "model": "qwen30b",
+      "B": 0,
+      "reuse_hit_rate": 0.0
+    },
+    {
+      "model": "qwen30b",
+      "B": 10,
+      "reuse_hit_rate": 0.9605230072919286
+    },
+    {
+      "model": "qwen30b",
+      "B": 50,
+      "ttft_s": 1.114,
+      "tps": 107.3,
+      "coverage_pct": 100.0,
+      "reuse_hit_rate": 0.9630374654262006
+    },
+    {
+      "model": "qwen30b",
+      "B": 100,
+      "ttft_s": 1.002,
+      "tps": 108.4,
+      "coverage_pct": 100.0,
+      "reuse_hit_rate": 0.9630374654262006
+    },
+    {
+      "model": "qwen30b",
+      "B": 150,
+      "reuse_hit_rate": 0.9630374654262006
+    },
+    {
+      "model": "qwen30b",
+      "B": 200,
+      "ttft_s": 0.891,
+      "tps": 109.0,
+      "coverage_pct": 98.5,
+      "reuse_hit_rate": 0.9630374654262006
+    },
+    {
+      "model": "qwen32b",
+      "B": 0,
+      "reuse_hit_rate": 0.0
+    },
+    {
+      "model": "qwen32b",
+      "B": 10,
+      "reuse_hit_rate": 0.9605230072919286
+    },
+    {
+      "model": "qwen32b",
+      "B": 50,
+      "ttft_s": 1.231,
+      "tps": 84.2,
+      "coverage_pct": 100.0,
+      "reuse_hit_rate": 0.9630374654262006
+    },
+    {
+      "model": "qwen32b",
+      "B": 100,
+      "ttft_s": 1.2,
+      "tps": 84.0,
+      "coverage_pct": 99.8,
+      "reuse_hit_rate": 0.9630374654262006
+    },
+    {
+      "model": "qwen32b",
+      "B": 150,
+      "reuse_hit_rate": 0.9630374654262006
+    },
+    {
+      "model": "qwen32b",
+      "B": 200,
+      "ttft_s": 1.168,
+      "tps": 83.7,
+      "coverage_pct": 97.8,
+      "reuse_hit_rate": 0.9630374654262006
+    }
+  ]
+}
